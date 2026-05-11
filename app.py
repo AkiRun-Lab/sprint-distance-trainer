@@ -294,6 +294,14 @@ elif st.session_state.step == 2:
                     "この診断結果をトレーニング計画に反映する",
                     value=True,
                 )
+                today_str = datetime.now().strftime("%Y%m%d")
+                st.download_button(
+                    label="診断結果をダウンロード（Markdown）",
+                    data=st.session_state.form_diagnosis.encode("utf-8-sig"),
+                    file_name=f"sdt_form_diagnosis_{today_str}.md",
+                    mime="text/markdown",
+                    use_container_width=True,
+                )
 
         except RuntimeError as e:
             err = str(e)
@@ -315,6 +323,14 @@ elif st.session_state.step == 2:
         st.session_state.use_form_in_plan = st.checkbox(
             "この診断結果をトレーニング計画に反映する",
             value=st.session_state.use_form_in_plan,
+        )
+        today_str = datetime.now().strftime("%Y%m%d")
+        st.download_button(
+            label="診断結果をダウンロード（Markdown）",
+            data=st.session_state.form_diagnosis.encode("utf-8-sig"),
+            file_name=f"sdt_form_diagnosis_{today_str}.md",
+            mime="text/markdown",
+            use_container_width=True,
         )
 
     # 次のステップへ進むボタン（診断完了後）
@@ -364,9 +380,15 @@ elif st.session_state.step == 3:
         col_dl, col_new = st.columns(2)
         with col_dl:
             today_str = datetime.now().strftime("%Y%m%d")
+            _download_content = st.session_state.training_plan
+            if st.session_state.form_diagnosis:
+                _download_content += (
+                    "\n\n---\n\n## フォーム診断結果\n\n"
+                    + st.session_state.form_diagnosis
+                )
             st.download_button(
                 label="計画をダウンロード（Markdown）",
-                data=st.session_state.training_plan.encode("utf-8-sig"),
+                data=_download_content.encode("utf-8-sig"),
                 file_name=f"sdt_plan_{user_data['distance']}_{today_str}.md",
                 mime="text/markdown",
                 use_container_width=True,
