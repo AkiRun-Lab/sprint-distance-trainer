@@ -95,10 +95,18 @@ _JSON_SCHEMA_INSTRUCTION = """
 {{
   "introduction": "コーチからの挨拶・現在の走力評価・計画の要点（フォーム診断がある場合はその概要も含む）",
   "basic_info": {{
+    "nickname": "{nickname}",
+    "age": {age},
+    "gender": "{gender}",
     "target_event": "{distance}",
     "current_best": "{current_best}",
     "target_time": "{target_time}",
+    "race_date": "{race_date}",
     "total_weeks": {total_weeks},
+    "training_days": {training_days},
+    "has_track": "{has_track}",
+    "has_gym": "{has_gym}",
+    "concerns": "{concerns_escaped}",
     "form_focus": "フォーム診断がある場合のみ：主な改善テーマを1〜2文で記述"
   }},
   "phase_overview": "3フェーズの構成と各フェーズの目的・期間を説明",
@@ -184,11 +192,22 @@ def build_plan_prompt(
     gym_available = "あり" if user_data.get("has_gym") else "なし"
     concerns = user_data.get("concerns", "なし") or "なし"
 
+    # concerns に波括弧が含まれると .format() が壊れるため先にエスケープ
+    concerns_escaped = concerns.replace("{", "{{").replace("}", "}}")
+
     json_schema = _JSON_SCHEMA_INSTRUCTION.format(
+        nickname=user_data["nickname"],
+        age=user_data["age"],
+        gender=user_data["gender"],
         distance=distance,
         current_best=user_data["current_best"],
         target_time=user_data["target_time"],
+        race_date=user_data["race_date"],
         total_weeks=total_weeks,
+        training_days=user_data["training_days"],
+        has_track=track_available,
+        has_gym=gym_available,
+        concerns_escaped=concerns_escaped,
     )
 
     return _BASE_PROMPT.format(

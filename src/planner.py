@@ -93,10 +93,26 @@ def _plan_json_to_markdown(plan_data: dict) -> str:
     basic = plan_data.get("basic_info", {})
     if basic:
         lines.append("## 基本情報")
+        if basic.get("nickname"):
+            lines.append(f"- 選手名：{basic['nickname']}")
+        if basic.get("age"):
+            lines.append(f"- 年齢：{basic['age']}歳")
+        if basic.get("gender"):
+            lines.append(f"- 性別：{basic['gender']}")
         lines.append(f"- 目標距離：{basic.get('target_event', '')}")
         lines.append(f"- 現在のベスト：{basic.get('current_best', '')}")
         lines.append(f"- 目標タイム：{basic.get('target_time', '')}")
+        if basic.get("race_date"):
+            lines.append(f"- 目標レース日：{basic['race_date']}")
         lines.append(f"- 計画期間：{basic.get('total_weeks', '')}週間")
+        if basic.get("training_days"):
+            lines.append(f"- 週練習日数：{basic['training_days']}日")
+        if basic.get("has_track"):
+            lines.append(f"- トラック：{basic['has_track']}")
+        if basic.get("has_gym"):
+            lines.append(f"- ウェイトジム：{basic['has_gym']}")
+        if basic.get("concerns"):
+            lines.append(f"- 要望・注意事項：{basic['concerns']}")
         if basic.get("form_focus"):
             lines.append(f"- フォーム改善テーマ：{basic['form_focus']}")
         lines.append("")
