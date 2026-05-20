@@ -1,6 +1,6 @@
 # SDT 技術仕様書
 
-**バージョン：v1.3.0　最終更新：2026-05-11**
+**バージョン：v1.4.0　最終更新：2026-05-21**
 
 ---
 
@@ -9,7 +9,7 @@
 | 項目 | 内容 |
 |------|------|
 | 名称 | SDT（Sprint & Distance Trainer） |
-| バージョン | v1.2.0 |
+| バージョン | v1.4.0 |
 | フレームワーク | Streamlit |
 | 実行環境 | Python 3.9 以上 |
 | AI バックエンド | Google Gemini（google-genai SDK） |
@@ -46,12 +46,11 @@
 
 | パラメータ | 値 |
 |-----------|-----|
-| モデル | gemini-3.1-pro-preview |
-| temperature | 0.2 |
-| top_p | 0.8 |
-| top_k | 32 |
+| モデル | gemini-3.5-flash |
 | max_tokens | 16384 |
-| thinking_budget | 8192 |
+| thinking_budget | 16384 |
+
+※ `temperature` / `top_p` / `top_k` は Gemini 3.5 Flash のデフォルト設定に最適化済みのため非推奨（指定しない）
 
 診断項目：
 - 全体的なランニングエコノミー
@@ -95,7 +94,7 @@ JSON スキーマ（主要フィールド）：
 [screener.py] 動画スクリーニング（Gemini flash-lite）
     → 不適切 → エラーメッセージ表示
     → 適切 ↓
-[analyzer.py] フォーム診断（Gemini pro-preview + Thinking）
+[analyzer.py] フォーム診断（Gemini 3.5 Flash + Thinking）
     ↓
 [app.py] 診断結果を session_state に保存
     ↓

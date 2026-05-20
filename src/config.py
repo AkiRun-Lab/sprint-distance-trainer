@@ -3,7 +3,7 @@ SDT（Sprint & Distance Trainer）- 設定定数
 """
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 
 # =============================================
 # Gemini モデル設定
@@ -13,7 +13,7 @@ APP_VERSION = "1.3.0"
 GEMINI_SCREENER_MODEL = "gemini-3.1-flash-lite"
 
 # フォーム診断（深層推論）
-GEMINI_ANALYZER_MODEL = "gemini-3.1-pro-preview"
+GEMINI_ANALYZER_MODEL = "gemini-3.5-flash"
 
 # トレーニング計画生成（構造化出力）
 GEMINI_PLANNER_MODEL = "gemini-3-flash-preview"
@@ -25,11 +25,8 @@ GEMINI_PLANNER_MODEL = "gemini-3-flash-preview"
 SCREENER_TEMPERATURE = 0.2
 SCREENER_MAX_TOKENS = 256
 
-ANALYZER_TEMPERATURE = 0.2
-ANALYZER_TOP_P = 0.8
-ANALYZER_TOP_K = 32
 ANALYZER_MAX_TOKENS = 16384
-ANALYZER_THINKING_BUDGET = 8192
+ANALYZER_THINKING_BUDGET = 16384
 
 PLANNER_TEMPERATURE = 0.2
 PLANNER_TOP_P = 0.95

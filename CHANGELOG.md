@@ -1,5 +1,17 @@
 # Changelog — SDT（Sprint & Distance Trainer）
 
+## v1.4.0 (2026-05-21)
+
+### 変更
+
+- フォーム診断モデルを `gemini-3.1-pro-preview` から `gemini-3.5-flash` に移行
+- Gemini 3.5 Flash の仕様に合わせてアナライザーのAPIパラメータを更新
+  - `temperature` / `top_p` / `top_k` を削除（3.5 Flash はデフォルト設定に最適化済みのため非推奨）
+  - `thinking_budget` を 8192 → 16384 に増加（3.5 Flash の上限拡大を活用）
+- スクリーニングモデル（gemini-3.1-flash-lite）・プランナーモデル（gemini-3-flash-preview）は変更なし
+
+---
+
 ## v1.3.0 (2026-05-11)
 
 ### 改善
