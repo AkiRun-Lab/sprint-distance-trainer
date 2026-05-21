@@ -81,9 +81,20 @@ def _parse_plan_json(raw: str) -> dict:
         return json.loads(repaired)
 
 
-def _plan_json_to_markdown(plan_data: dict) -> str:
+_DAY_MAP = {"月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6}
+
+
+def _plan_json_to_markdown(plan_data: dict, start_date: str = "") -> str:
     """JSONトレーニング計画をMarkdown文字列に変換する"""
     lines = []
+
+    start_dt = None
+    if start_date:
+        try:
+            clean = start_date.replace("年", "-").replace("月", "-").replace("日", "")
+            start_dt = datetime.strptime(clean, "%Y-%m-%d")
+        except ValueError:
+            pass
 
     intro = plan_data.get("introduction", "")
     if intro:
@@ -134,13 +145,18 @@ def _plan_json_to_markdown(plan_data: dict) -> str:
             lines.append("| 曜日 | 練習内容 | 詳細 | 強度 | 休憩 | ポイント |")
             lines.append("|------|---------|------|------|------|---------|")
             for day in days:
-                date = day.get("date", "")
+                day_name = day.get("date", "")
+                if start_dt and day_name in _DAY_MAP:
+                    target_dt = start_dt + timedelta(weeks=(week_num - 1), days=_DAY_MAP[day_name])
+                    date_label = f"{target_dt.month}/{target_dt.day}({day_name})"
+                else:
+                    date_label = day_name
                 menu = day.get("menu", "")
                 detail = day.get("detail", "")
                 intensity = day.get("intensity", "")
                 rest = day.get("rest", "")
                 advice = day.get("advice", "")
-                lines.append(f"| {date} | {menu} | {detail} | {intensity} | {rest} | {advice} |")
+                lines.append(f"| {date_label} | {menu} | {detail} | {intensity} | {rest} | {advice} |")
 
         summary = week_data.get("weekly_summary", "")
         if summary:
@@ -198,7 +214,7 @@ def generate_plan(
                 ),
             )
             plan_data = _parse_plan_json(response.text)
-            markdown = _plan_json_to_markdown(plan_data)
+            markdown = _plan_json_to_markdown(plan_data, start_date)
             result_container.append(markdown)
             return
 

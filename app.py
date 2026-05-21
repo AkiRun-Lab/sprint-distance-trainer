@@ -176,16 +176,26 @@ if st.session_state.step == 1:
             min_value=datetime.today() + timedelta(days=1),
         )
 
+        st.markdown('練習レース・記録会 <span style="background-color: #1976D2; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 4px;">任意</span>', unsafe_allow_html=True)
+        practice_races = st.text_area(
+            "練習レース・記録会",
+            placeholder="例: 6/1 春季記録会（400m）\n6/15 招待記録会（800m）",
+            height=80,
+            label_visibility="collapsed",
+        )
+
         col5, col6 = st.columns(2)
         with col5:
             has_track = st.checkbox("トラック（競技場）が使える")
         with col6:
             has_gym = st.checkbox("ウェイトジムが使える")
 
+        st.markdown('要望・注意事項 <span style="background-color: #1976D2; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 4px;">任意</span>', unsafe_allow_html=True)
         concerns = st.text_area(
-            "要望・注意事項（任意）",
+            "要望・注意事項",
             placeholder="例1：左膝に違和感がある、朝練ができない\n例2：400m、800mにも取り組みたい",
             height=80,
+            label_visibility="collapsed",
         )
 
         submitted = st.form_submit_button("次へ → フォーム診断", use_container_width=True)
@@ -215,6 +225,7 @@ if st.session_state.step == 1:
                 "has_track": has_track,
                 "has_gym": has_gym,
                 "concerns": concerns.strip(),
+                "practice_races": practice_races.strip(),
             }
             st.session_state.step = 2
             st.rerun()

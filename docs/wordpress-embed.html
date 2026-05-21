@@ -1,0 +1,256 @@
+<style>
+  .sdt-wrapper {
+    width: 100%;
+    overflow: hidden;
+    background-color: #0E1117;
+    margin: 0;
+    padding: 0;
+  }
+  .sdt-iframe {
+    width: calc(100% + 10px);
+    border: none !important;
+    display: block;
+    margin-left: -5px;
+    margin-top: -5px;
+    margin-bottom: 0;
+    clip-path: inset(5px 5px 0 5px);
+  }
+  @media (min-width: 768px) { .sdt-iframe { height: 2200px; } }
+  @media (max-width: 767px) { .sdt-iframe { height: 3800px; } }
+
+  /* iframeの下に表示するコンテンツ（ダークモード） */
+  .sdt-content {
+    background: #0E1117;
+    color: #FAFAFA;
+    padding: 40px 30px;
+    line-height: 1.8;
+    font-size: 16px;
+  }
+  .sdt-content h2 {
+    color: #FF4B4B;
+    font-size: 1.4em;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #333;
+  }
+  .sdt-content h2:first-child {
+    margin-top: 0;
+  }
+  .sdt-content h3 {
+    color: #FAFAFA;
+    font-size: 1.1em;
+    margin-top: 20px;
+    margin-bottom: 10px;
+  }
+  .sdt-content ul {
+    padding-left: 20px;
+    margin: 15px 0;
+  }
+  .sdt-content li {
+    margin-bottom: 8px;
+    color: #FAFAFA;
+  }
+  .sdt-content li strong {
+    color: #FF4B4B;
+  }
+  .sdt-content p {
+    margin: 15px 0;
+    color: #FAFAFA;
+  }
+  .sdt-content a {
+    color: #FF4B4B;
+    text-decoration: none;
+  }
+  .sdt-content a:hover {
+    text-decoration: underline;
+  }
+  .sdt-content .note {
+    background: #1a1d24;
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 0.9em;
+    color: #888;
+    margin-top: 30px;
+    border: 1px solid #333;
+  }
+  .sdt-content .steps {
+    counter-reset: step-counter;
+    list-style: none;
+    padding-left: 0;
+  }
+  .sdt-content .steps li {
+    counter-increment: step-counter;
+    padding-left: 2.5em;
+    position: relative;
+    margin-bottom: 12px;
+  }
+  .sdt-content .steps li::before {
+    content: counter(step-counter);
+    position: absolute;
+    left: 0;
+    top: 0;
+    background: #FF4B4B;
+    color: #fff;
+    width: 1.8em;
+    height: 1.8em;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85em;
+    font-weight: bold;
+  }
+  .sdt-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    font-size: 0.95em;
+  }
+  .sdt-content th {
+    background: #1a1d24;
+    color: #FF4B4B;
+    padding: 10px 12px;
+    text-align: left;
+    border: 1px solid #333;
+  }
+  .sdt-content td {
+    padding: 10px 12px;
+    border: 1px solid #333;
+    color: #FAFAFA;
+  }
+  .sdt-content tr:nth-child(even) td {
+    background: #1a1d24;
+  }
+  .sdt-content .faq dt {
+    color: #FF4B4B;
+    font-weight: bold;
+    margin-top: 18px;
+    margin-bottom: 6px;
+  }
+  .sdt-content .faq dd {
+    margin-left: 0;
+    color: #FAFAFA;
+  }
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "陸上短距離練習メニュー生成ツール",
+  "operatingSystem": "Web",
+  "applicationCategory": "SportsApplication",
+  "description": "100m〜1500mの5距離に対応したAI陸上トレーニング計画生成ツール。目標タイムとレース日を入力するだけで、科学的根拠に基づいた個別の週次練習メニューを無料で取得できます。",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "JPY"
+  },
+  "author": {
+    "@type": "Person",
+    "name": "あきら",
+    "url": "https://akirun.net/profile/"
+  }
+}
+</script>
+<div class="sdt-wrapper">
+  <iframe
+    class="sdt-iframe"
+    src="https://sprint-distance-trainer.streamlit.app/?embed=true"
+    loading="lazy"
+    title="陸上短距離練習メニュー生成ツール"
+  ></iframe>
+</div>
+<div class="sdt-content">
+  <h2>短距離・中距離の練習メニュー、自分の目標に合わせて組めていますか</h2>
+  <p>
+    Webで検索すると「週5日の一般的なスプリント練習例」は見つかります。しかし「12週後に400mで55秒を切りたい、週3日しか練習できない」という条件に合わせてくれるリソースは、ほとんどありません。
+  </p>
+  <p>
+    陸上短距離練習メニュー生成ツールは、目標距離・タイム・レース日・週練習日数を入力するだけで、AIが個人の条件に合わせた週次トレーニング計画を自動生成します。100m・200m・400m（短距離）から800m・1500m（中距離）まで5距離に対応し、フォーム診断と組み合わせることもできます。
+  </p>
+
+  <h2>対応距離と計画フェーズ</h2>
+  <table>
+    <tr>
+      <th>距離</th>
+      <th>種別</th>
+      <th>フェーズ構成</th>
+      <th>計画期間</th>
+    </tr>
+    <tr>
+      <td>100m</td>
+      <td>短距離</td>
+      <td>GPP → SPP → 競技期</td>
+      <td>8〜12週</td>
+    </tr>
+    <tr>
+      <td>200m</td>
+      <td>短距離</td>
+      <td>GPP → SPP → 競技期</td>
+      <td>8〜12週</td>
+    </tr>
+    <tr>
+      <td>400m</td>
+      <td>短距離</td>
+      <td>GPP → SPP → 競技期</td>
+      <td>10〜16週</td>
+    </tr>
+    <tr>
+      <td>800m</td>
+      <td>中距離</td>
+      <td>有酸素基盤 → スピード持久力 → 競技期</td>
+      <td>10〜16週</td>
+    </tr>
+    <tr>
+      <td>1500m</td>
+      <td>中距離</td>
+      <td>有酸素基盤 → スピード持久力 → 競技期</td>
+      <td>12〜16週</td>
+    </tr>
+  </table>
+  <p>
+    計画期間は目標レース日までの週数をもとに、距離ごとの範囲内で自動調整されます。計画はCharlie Francis式の周期化理論に基づいており、レース日から逆算してGPP・SPP・競技期の期間配分が決まります。
+  </p>
+
+  <h2>使い方3ステップ</h2>
+  <ol class="steps">
+    <li><strong>基本情報を入力する</strong>：目標距離・現在のベスト・目標タイム・目標レース日・週練習日数・施設環境（トラック有無・ウェイトジム有無）などを入力します</li>
+    <li><strong>フォーム診断を受ける（任意）</strong>：走行動画（MP4・MOV・AVI・WEBM、200MB以下）をアップロードするとGemini AIがフォームを解析します。接地・骨盤・体幹・腕振り・ストライドなどを診断し、結果はそのままトレーニング計画に反映されます。スキップしても計画は生成できます</li>
+    <li><strong>計画を生成・ダウンロードする</strong>：週次スケジュール形式でトレーニング計画が出力されます。Markdown形式でダウンロード可能。フォーム診断を実施した場合は計画ファイルの末尾に診断結果が付記されます</li>
+  </ol>
+
+  <h2>こんな陸上ランナーに向いています</h2>
+  <ul>
+    <li>短距離・中距離の練習メニューを体系的に組んだことがない初心者</li>
+    <li>「なんとなく走っているがタイムが伸び悩んでいる」中級者</li>
+    <li>週3〜5日という限られた練習時間で効率的に強化したい社会人ランナー</li>
+    <li>部活動で指導する立場にあるが、周期化の知識を深めたい指導者</li>
+    <li>マラソンが主体だが、スピード強化のために短距離・中距離練習を取り入れたいランナー</li>
+  </ul>
+
+  <h2>よくある質問</h2>
+  <dl class="faq">
+    <dt>Q. 無料で使えますか？</dt>
+    <dd>完全無料です。アカウント登録も不要で、ブラウザだけで利用できます。</dd>
+
+    <dt>Q. フォーム診断・計画生成は何回まで使えますか？</dt>
+    <dd>フォーム診断・トレーニング計画生成はそれぞれ1日1回まで利用できます。翌日（日付が変わったとき）に自動リセットされます。ブラウザを再読み込みしてもリセットはされません。</dd>
+
+    <dt>Q. フォーム診断をしないと計画は作れませんか？</dt>
+    <dd>STEP 2で「スキップして計画を作成する」を選択すると、フォーム診断なしで計画を生成できます。</dd>
+
+    <dt>Q. スマートフォンからも使えますか？</dt>
+    <dd>使えます。レスポンシブデザインに対応しており、動画のアップロード・計画のダウンロードも可能です。</dd>
+
+    <dt>Q. 動画はどのくらいの長さが適していますか？</dt>
+    <dd>5〜30秒程度が最適です。長すぎるとアップロード・処理に時間がかかります。</dd>
+
+    <dt>Q. 計画の週数はどうやって決まりますか？</dt>
+    <dd>目標レース日までの週数を基準に、距離ごとの最小〜最大週数の範囲内で自動調整されます（100m・200mは8〜12週、400m・800mは10〜16週、1500mは12〜16週）。</dd>
+  </dl>
+
+  <div class="note">
+    本ツールはAI（Google Gemini）による自動生成であり、専門コーチによる個別指導の代替ではありません。怪我や痛みがある場合は医療機関にご相談のうえ、トレーニング強度を調整してください。
+  </div>
+</div>

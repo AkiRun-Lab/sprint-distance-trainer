@@ -154,6 +154,8 @@ _BASE_PROMPT = """
 
 {form_section}
 
+{practice_races_section}
+
 ## 計画期間
 
 開始日：{start_date}
@@ -195,6 +197,14 @@ def build_plan_prompt(
     # concerns に波括弧が含まれると .format() が壊れるため先にエスケープ
     concerns_escaped = concerns.replace("{", "{{").replace("}", "}}")
 
+    practice_races = user_data.get("practice_races", "") or ""
+    practice_races_escaped = practice_races.replace("{", "{{").replace("}", "}}")
+    practice_races_section = ""
+    if practice_races:
+        practice_races_section = f"""## 練習レース・記録会
+{practice_races_escaped}
+※指定された日に練習レース（記録会）を組み込み、前日は軽め調整（ウォームアップ程度）とすること。"""
+
     json_schema = _JSON_SCHEMA_INSTRUCTION.format(
         nickname=user_data["nickname"],
         age=user_data["age"],
@@ -224,6 +234,7 @@ def build_plan_prompt(
         concerns=concerns,
         energy_info=energy_info,
         form_section=form_section,
+        practice_races_section=practice_races_section,
         start_date=start_date,
         total_weeks=total_weeks,
         json_schema=json_schema,
