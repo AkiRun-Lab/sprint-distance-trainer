@@ -25,7 +25,7 @@ from src.ui.components import load_css, render_header, render_step_indicator, re
 # =============================================
 # ページ設定
 # =============================================
-st.set_page_config(page_title=APP_NAME, page_icon="⚡", layout="centered")
+st.set_page_config(page_title=APP_NAME, page_icon="⚡", layout="centered", initial_sidebar_state="collapsed")
 
 # =============================================
 # Cookie コントローラー
