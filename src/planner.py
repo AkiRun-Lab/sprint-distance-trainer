@@ -37,20 +37,20 @@ def calculate_plan_weeks(race_date_str: str, distance: str) -> tuple[int, str]:
     min_weeks = DISTANCE_CATEGORIES[distance]["min_weeks"]
     default_weeks = DISTANCE_CATEGORIES[distance]["default_weeks"]
 
-    actual_weeks = max(0, (race_dt - today).days // 7)
+    # 月曜日基準で週数を計算（曜日による端数をなくす）
+    race_week_monday = race_dt - timedelta(days=race_dt.weekday())
+    today_monday = today - timedelta(days=today.weekday())
+    actual_weeks = max(0, (race_week_monday - today_monday).days // 7)
 
     if actual_weeks < min_weeks:
         total_weeks = min_weeks
-        start_dt = race_dt - timedelta(weeks=min_weeks)
     elif actual_weeks > default_weeks:
         total_weeks = default_weeks
-        start_dt = race_dt - timedelta(weeks=default_weeks)
     else:
         total_weeks = actual_weeks
-        start_dt = today
 
-    # 直近の月曜日に合わせる
-    start_dt = start_dt - timedelta(days=start_dt.weekday())
+    # 開始日: レース週月曜日から逆算（常にMonday aligned）
+    start_dt = race_week_monday - timedelta(weeks=total_weeks - 1)
     return total_weeks, start_dt.strftime("%Y年%m月%d日")
 
 
@@ -84,7 +84,7 @@ def _parse_plan_json(raw: str) -> dict:
 _DAY_MAP = {"月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6}
 
 
-def _plan_json_to_markdown(plan_data: dict, start_date: str = "") -> str:
+def _plan_json_to_markdown(plan_data: dict, start_date: str = "", practice_races: str = "") -> str:
     """JSONトレーニング計画をMarkdown文字列に変換する"""
     lines = []
 
@@ -126,6 +126,8 @@ def _plan_json_to_markdown(plan_data: dict, start_date: str = "") -> str:
             lines.append(f"- 要望・注意事項：{basic['concerns']}")
         if basic.get("form_focus"):
             lines.append(f"- フォーム改善テーマ：{basic['form_focus']}")
+        if practice_races:
+            lines.append(f"- 練習レース・記録会：{practice_races}")
         lines.append("")
 
     phase_overview = plan_data.get("phase_overview", "")
@@ -214,7 +216,7 @@ def generate_plan(
                 ),
             )
             plan_data = _parse_plan_json(response.text)
-            markdown = _plan_json_to_markdown(plan_data, start_date)
+            markdown = _plan_json_to_markdown(plan_data, start_date, user_data.get("practice_races", ""))
             result_container.append(markdown)
             return
 
