@@ -3,6 +3,70 @@ SDT - トレーニング計画生成プロンプト
 距離別のエネルギーシステム定義と計画生成プロンプトを管理する。
 """
 
+import re
+from datetime import datetime, timedelta
+
+
+def _parse_practice_races_with_dates(practice_races: str, start_date: str) -> list:
+    """練習レース文字列から M/D 日付を抽出し、週番号・曜日名を計算して返す。
+
+    Gemini に日付計算をさせると週境界付近（土曜等）でズレが生じるため、
+    Python 側で計算済みの情報をプロンプトに明示する。
+
+    Returns:
+        [{"week_num": int|None, "day_name": str, "date_str": str, "raw": str}, ...]
+        week_num が None の場合はプラン開始前の日付。
+    """
+    if not practice_races or not start_date:
+        return []
+
+    try:
+        clean = start_date.replace("年", "-").replace("月", "-").replace("日", "")
+        start_dt = datetime.strptime(clean, "%Y-%m-%d")
+    except ValueError:
+        return []
+
+    DAY_NAMES = ["月", "火", "水", "木", "金", "土", "日"]
+    results = []
+
+    for entry in re.split(r"[,、\n]+", practice_races):
+        entry = entry.strip()
+        if not entry:
+            continue
+        m = re.search(r"(\d{1,2})/(\d{1,2})", entry)
+        if not m:
+            continue
+
+        month, day = int(m.group(1)), int(m.group(2))
+        year = start_dt.year
+        try:
+            race_dt = datetime(year, month, day)
+        except ValueError:
+            continue
+
+        # 年をまたぐ計画に対応（半年以上過去なら翌年）
+        if (race_dt - start_dt).days < -180:
+            try:
+                race_dt = datetime(year + 1, month, day)
+            except ValueError:
+                continue
+
+        delta = (race_dt - start_dt).days
+        day_name = DAY_NAMES[race_dt.weekday()]
+        date_str = f"{month}/{day}({day_name})"
+        week_num = None if delta < 0 else (delta // 7 + 1)
+
+        results.append(
+            {
+                "week_num": week_num,
+                "day_name": day_name,
+                "date_str": date_str,
+                "raw": entry,
+            }
+        )
+
+    return results
+
 PLANNER_SYSTEM_INSTRUCTION = """
 あなたは陸上競技の短距離・中距離トレーニング科学に精通した世界的レベルのコーチです。
 
@@ -198,12 +262,37 @@ def build_plan_prompt(
     concerns_escaped = concerns.replace("{", "{{").replace("}", "}}")
 
     practice_races = user_data.get("practice_races", "") or ""
-    practice_races_escaped = practice_races.replace("{", "{{").replace("}", "}}")
     practice_races_section = ""
     if practice_races:
-        practice_races_section = f"""## 練習レース・記録会
-{practice_races_escaped}
-※指定された日に練習レース（記録会）を組み込み、前日は軽め調整（ウォームアップ程度）とすること。"""
+        parsed = _parse_practice_races_with_dates(practice_races, start_date)
+        if parsed:
+            section_lines = [
+                "## 練習レース・記録会",
+                "以下の週・曜日に練習レースを組み込んでください。"
+                "指定した**週番号と曜日を厳守**し、前後の週に移動しないこと。"
+                "前日（指定曜日の前日）は必ず軽め調整（ウォームアップ程度）とすること。",
+                "",
+            ]
+            for p in parsed:
+                raw_escaped = p["raw"].replace("{", "{{").replace("}", "}}")
+                if p["week_num"] is None:
+                    section_lines.append(
+                        f"- ※計画開始前のため第1週の{p['day_name']}曜日に組み込む"
+                        f"（{p['date_str']}）：{raw_escaped}"
+                    )
+                else:
+                    section_lines.append(
+                        f"- 第{p['week_num']}週・{p['day_name']}曜日（{p['date_str']}）：{raw_escaped}"
+                    )
+            practice_races_section = "\n".join(section_lines)
+        else:
+            # パース失敗フォールバック（旧挙動）
+            practice_races_escaped = practice_races.replace("{", "{{").replace("}", "}}")
+            practice_races_section = (
+                f"## 練習レース・記録会\n{practice_races_escaped}\n"
+                "※指定された日に練習レース（記録会）を組み込み、"
+                "前日は軽め調整（ウォームアップ程度）とすること。"
+            )
 
     json_schema = _JSON_SCHEMA_INSTRUCTION.format(
         nickname=user_data["nickname"],

@@ -3,7 +3,7 @@ SDT（Sprint & Distance Trainer）- 設定定数
 """
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.8.1"
+APP_VERSION = "1.8.2"
 
 # =============================================
 # Gemini モデル設定
