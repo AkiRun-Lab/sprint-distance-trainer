@@ -300,25 +300,11 @@ elif st.session_state.step == 2:
                     diagnosis_result = analyze_form(client, video_file, context_input)
 
                 st.session_state.form_diagnosis = diagnosis_result
+                st.session_state.use_form_in_plan = True
                 st.session_state.diagnosis_count += 1
                 st.session_state.cookie_write_pending = True
 
                 st.success("診断完了！")
-                st.markdown("### 診断結果")
-                st.markdown(diagnosis_result)
-
-                st.session_state.use_form_in_plan = st.checkbox(
-                    "この診断結果をトレーニング計画に反映する",
-                    value=True,
-                )
-                today_str = datetime.now().strftime("%Y%m%d")
-                st.download_button(
-                    label="診断結果をダウンロード（Markdown）",
-                    data=st.session_state.form_diagnosis.encode("utf-8-sig"),
-                    file_name=f"sdt_form_diagnosis_{today_str}.md",
-                    mime="text/markdown",
-                    use_container_width=True,
-                )
 
         except RuntimeError as e:
             err = str(e)
@@ -335,20 +321,6 @@ elif st.session_state.step == 2:
     # 既存の診断結果がある場合の表示
     elif st.session_state.form_diagnosis and not run_diagnosis:
         st.success("診断結果あり")
-        with st.expander("診断結果を確認する"):
-            st.markdown(st.session_state.form_diagnosis)
-        st.session_state.use_form_in_plan = st.checkbox(
-            "この診断結果をトレーニング計画に反映する",
-            value=st.session_state.use_form_in_plan,
-        )
-        today_str = datetime.now().strftime("%Y%m%d")
-        st.download_button(
-            label="診断結果をダウンロード（Markdown）",
-            data=st.session_state.form_diagnosis.encode("utf-8-sig"),
-            file_name=f"sdt_form_diagnosis_{today_str}.md",
-            mime="text/markdown",
-            use_container_width=True,
-        )
 
     # 次のステップへ進むボタン（診断完了後）
     if st.session_state.form_diagnosis:
@@ -375,11 +347,7 @@ elif st.session_state.step == 3:
     st.subheader("STEP 3　トレーニング計画の生成")
 
     user_data = st.session_state.user_data
-    form_diagnosis = (
-        st.session_state.form_diagnosis
-        if st.session_state.use_form_in_plan
-        else None
-    )
+    form_diagnosis = st.session_state.form_diagnosis
 
     total_weeks, start_date = calculate_plan_weeks(user_data["race_date"], user_data["distance"])
 
@@ -393,6 +361,10 @@ elif st.session_state.step == 3:
     # 既存の計画がある場合は表示
     if st.session_state.training_plan:
         render_result(st.session_state.training_plan)
+
+        if st.session_state.get("form_diagnosis"):
+            with st.expander("フォーム診断結果を確認する", expanded=False):
+                st.markdown(st.session_state.form_diagnosis)
 
         col_dl, col_new = st.columns(2)
         with col_dl:
