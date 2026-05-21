@@ -304,8 +304,6 @@ elif st.session_state.step == 2:
                 st.session_state.diagnosis_count += 1
                 st.session_state.cookie_write_pending = True
 
-                st.success("診断完了！")
-
         except RuntimeError as e:
             err = str(e)
             if "429_RATE_LIMITED" in err:
@@ -318,12 +316,9 @@ elif st.session_state.step == 2:
             if video_file:
                 cleanup_video(client, video_file)
 
-    # 既存の診断結果がある場合の表示
-    elif st.session_state.form_diagnosis and not run_diagnosis:
-        st.success("診断結果あり")
-
-    # 次のステップへ進むボタン（診断完了後）
+    # 次のステップへ進むボタン（診断完了後）— cleanup完了後にまとめて表示
     if st.session_state.form_diagnosis:
+        st.success("診断完了！")
         if st.button("計画を作成する →", use_container_width=True, type="primary"):
             st.session_state.step = 3
             st.rerun()
