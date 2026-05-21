@@ -59,6 +59,7 @@ def _init_session_state():
         "counts_loaded": False,
         "cookie_write_pending": False,
         "_first_render_done": False,
+        "auto_generate_plan": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -320,6 +321,7 @@ elif st.session_state.step == 2:
     if st.session_state.form_diagnosis:
         st.success("診断完了！")
         if st.button("計画を作成する →", use_container_width=True, type="primary"):
+            st.session_state.auto_generate_plan = True
             st.session_state.step = 3
             st.rerun()
 
@@ -327,6 +329,7 @@ elif st.session_state.step == 2:
     if skip_diagnosis:
         st.session_state.form_diagnosis = None
         st.session_state.use_form_in_plan = False
+        st.session_state.auto_generate_plan = True
         st.session_state.step = 3
         st.rerun()
 
@@ -352,6 +355,11 @@ elif st.session_state.step == 3:
         st.session_state.plan_count >= MAX_PLAN_GENERATIONS_PER_SESSION
         and not st.session_state.is_admin
     )
+
+    # STEP 2 からの遷移時に自動起動するフラグを読み取り即クリア
+    auto_generate = st.session_state.get("auto_generate_plan", False)
+    if auto_generate:
+        st.session_state.auto_generate_plan = False
 
     # 既存の計画がある場合は表示
     if st.session_state.training_plan:
@@ -385,7 +393,7 @@ elif st.session_state.step == 3:
                 st.rerun()
 
     elif not plan_limit_reached:
-        if st.button("トレーニング計画を生成する", type="primary", use_container_width=True):
+        if auto_generate or st.button("トレーニング計画を生成する", type="primary", use_container_width=True):
             result_container = []
             error_container = []
 
