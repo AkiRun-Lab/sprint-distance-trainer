@@ -83,9 +83,15 @@ if not st.session_state.counts_loaded:
 
 # rerun直前にset()すると書き込みが失われるため、次の描画サイクル先頭でまとめて書く
 if st.session_state.get("cookie_write_pending"):
-    _cookie_controller.set("sdt_date", datetime.today().strftime("%Y-%m-%d"))
-    _cookie_controller.set("sdt_diag_count", str(st.session_state.diagnosis_count))
-    _cookie_controller.set("sdt_plan_count", str(st.session_state.plan_count))
+    _cookie_opts = dict(
+        same_site='none',
+        secure=True,
+        partitioned=True,
+        expires=datetime.now() + timedelta(days=2),
+    )
+    _cookie_controller.set("sdt_date", datetime.today().strftime("%Y-%m-%d"), **_cookie_opts)
+    _cookie_controller.set("sdt_diag_count", str(st.session_state.diagnosis_count), **_cookie_opts)
+    _cookie_controller.set("sdt_plan_count", str(st.session_state.plan_count), **_cookie_opts)
     st.session_state.cookie_write_pending = False
 
 # =============================================
@@ -257,7 +263,7 @@ elif st.session_state.step == 2:
                 use_container_width=True,
             )
     else:
-        st.warning(f"このセッションのフォーム診断は{MAX_DIAGNOSES_PER_SESSION}回までです。")
+        st.warning(f"1日あたりのフォーム診断は{MAX_DIAGNOSES_PER_SESSION}回までです。明日またお試しください。")
         skip_diagnosis = st.button("スキップして計画を作成する", use_container_width=True)
         run_diagnosis = False
         uploaded_file = None
@@ -443,7 +449,7 @@ elif st.session_state.step == 3:
                 else:
                     st.error(f"⚠️ 計画の生成に失敗しました: {err}")
     else:
-        st.warning(f"このセッションの計画生成は{MAX_PLAN_GENERATIONS_PER_SESSION}回までです。")
+        st.warning(f"1日あたりの計画生成は{MAX_PLAN_GENERATIONS_PER_SESSION}回までです。明日またお試しください。")
 
     # 戻るボタン
     if not st.session_state.training_plan:

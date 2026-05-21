@@ -1,5 +1,15 @@
 # Changelog — SDT（Sprint & Distance Trainer）
 
+## v1.5.0 (2026-05-21)
+
+### 変更
+
+- フォーム診断・計画生成の使用制限を「1日3回」→「1日1回」に変更（RFDと統一）
+- 制限到達時の警告テキストを「このセッションの〜」→「1日あたりの〜明日またお試しください。」に更新
+- Cookie書き込みオプションを追加（`same_site='none'`, `secure=True`, `partitioned=True`, `expires=+2日`）：iframe埋め込み時のクロスサイトCookie制限に対応
+
+---
+
 ## v1.4.0 (2026-05-21)
 
 ### 変更

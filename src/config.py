@@ -3,7 +3,7 @@ SDT（Sprint & Distance Trainer）- 設定定数
 """
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.5.0"
 
 # =============================================
 # Gemini モデル設定
@@ -40,7 +40,7 @@ PLANNER_THINKING_BUDGET = 8192
 SUPPORTED_VIDEO_TYPES = ["mp4", "mov", "avi", "webm"]
 VIDEO_POLL_INTERVAL = 2      # ポーリング間隔（秒）
 VIDEO_UPLOAD_TIMEOUT = 120   # タイムアウト（秒）
-MAX_DIAGNOSES_PER_SESSION = 3
+MAX_DIAGNOSES_PER_SESSION = 1
 
 # =============================================
 # 距離カテゴリ定義
@@ -100,4 +100,4 @@ DISTANCE_OPTIONS = list(DISTANCE_CATEGORIES.keys())
 # セッション制限
 # =============================================
 
-MAX_PLAN_GENERATIONS_PER_SESSION = 3
+MAX_PLAN_GENERATIONS_PER_SESSION = 1
