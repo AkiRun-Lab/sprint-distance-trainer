@@ -56,9 +56,19 @@ def _parse_practice_races_with_dates(practice_races: str, start_date: str) -> li
         date_str = f"{month}/{day}({day_name})"
         week_num = None if delta < 0 else (delta // 7 + 1)
 
+        # 週の月曜・日曜日付を計算してプロンプトに明示（Gemini の日曜始まり誤解を防ぐ）
+        _wn = week_num if week_num is not None else 1
+        week_start_dt = start_dt + timedelta(days=(_wn - 1) * 7)
+        week_end_dt = week_start_dt + timedelta(days=6)
+        week_range = (
+            f"{week_start_dt.month}/{week_start_dt.day}月"
+            f"〜{week_end_dt.month}/{week_end_dt.day}日"
+        )
+
         results.append(
             {
                 "week_num": week_num,
+                "week_range": week_range,
                 "day_name": day_name,
                 "date_str": date_str,
                 "raw": entry,
@@ -270,19 +280,20 @@ def build_plan_prompt(
                 "## 練習レース・記録会",
                 "以下の週・曜日に練習レースを組み込んでください。"
                 "指定した**週番号と曜日を厳守**し、前後の週に移動しないこと。"
-                "前日（指定曜日の前日）は必ず軽め調整（ウォームアップ程度）とすること。",
+                "前日（指定曜日の前日）は必ず軽め調整（ウォームアップ程度）とすること。"
+                "**週は月曜始まり・日曜終わりです（ISO 8601）。**",
                 "",
             ]
             for p in parsed:
                 raw_escaped = p["raw"].replace("{", "{{").replace("}", "}}")
                 if p["week_num"] is None:
                     section_lines.append(
-                        f"- ※計画開始前のため第1週の{p['day_name']}曜日に組み込む"
-                        f"（{p['date_str']}）：{raw_escaped}"
+                        f"- ※計画開始前のため第1週（{p['week_range']}）の{p['day_name']}曜日"
+                        f"（{p['date_str']}）に組み込む：{raw_escaped}"
                     )
                 else:
                     section_lines.append(
-                        f"- 第{p['week_num']}週・{p['day_name']}曜日（{p['date_str']}）：{raw_escaped}"
+                        f"- 第{p['week_num']}週（{p['week_range']}）の{p['day_name']}曜日（{p['date_str']}）：{raw_escaped}"
                     )
             practice_races_section = "\n".join(section_lines)
         else:

@@ -43,6 +43,63 @@ def _load_cookie_counts(controller: CookieController):
     plan = int(controller.get("sdt_plan_count") or "0")
     return diag, plan
 
+
+def _generate_plan_inline(api_key, user_data, form_diagnosis):
+    """STEP 2 のボタン押下時にインラインで計画生成を実行し、プログレスバーを表示する。
+
+    中間 st.rerun() なしで即座に while ループに入るため、
+    ブラウザに STEP 2 の dim overlay が残るフリーズを防ぐ。
+    """
+    import time as _time
+
+    plan_limit_reached = (
+        st.session_state.plan_count >= MAX_PLAN_GENERATIONS_PER_SESSION
+        and not st.session_state.is_admin
+    )
+    if plan_limit_reached:
+        st.session_state.step = 3
+        st.rerun()
+
+    total_weeks, start_date = calculate_plan_weeks(user_data["race_date"], user_data["distance"])
+    result_container = []
+    error_container = []
+    thread = threading.Thread(
+        target=generate_plan,
+        args=(api_key, user_data, form_diagnosis, total_weeks, start_date, result_container, error_container),
+        daemon=True,
+    )
+    thread.start()
+
+    ESTIMATED_SECONDS = 60
+    progress_bar = st.progress(0.0)
+    status_text = st.empty()
+    elapsed = 0
+    while thread.is_alive():
+        elapsed += 0.5
+        progress = min(0.95, elapsed / ESTIMATED_SECONDS)
+        progress_bar.progress(progress)
+        status_text.text(f"Gemini がトレーニング計画を作成中です... （約{ESTIMATED_SECONDS}秒）")
+        _time.sleep(0.5)
+
+    thread.join()
+    progress_bar.progress(1.0)
+    status_text.empty()
+
+    if result_container:
+        st.session_state.training_plan = result_container[0]
+        st.session_state.plan_count += 1
+        st.session_state.cookie_write_pending = True
+        st.session_state.step = 3
+        st.rerun()
+    else:
+        err = error_container[0] if error_container else "UNKNOWN"
+        if "503_SERVICE_UNAVAILABLE" in err:
+            st.error("⚠️ サーバーが混雑しています。しばらく待ってから再試行してください。")
+        elif "429_RATE_LIMITED" in err:
+            st.error("⚠️ APIのリクエスト上限に達しました。しばらく待ってから再試行してください。")
+        else:
+            st.error(f"⚠️ 計画の生成に失敗しました: {err}")
+
 # =============================================
 # セッション状態の初期化
 # =============================================
@@ -59,7 +116,6 @@ def _init_session_state():
         "counts_loaded": False,
         "cookie_write_pending": False,
         "_first_render_done": False,
-        "auto_generate_plan": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -321,17 +377,13 @@ elif st.session_state.step == 2:
     if st.session_state.form_diagnosis:
         st.success("診断完了！")
         if st.button("計画を作成する →", use_container_width=True, type="primary"):
-            st.session_state.auto_generate_plan = True
-            st.session_state.step = 3
-            st.rerun()
+            _generate_plan_inline(api_key, st.session_state.user_data, st.session_state.form_diagnosis)
 
     # スキップ
     if skip_diagnosis:
         st.session_state.form_diagnosis = None
         st.session_state.use_form_in_plan = False
-        st.session_state.auto_generate_plan = True
-        st.session_state.step = 3
-        st.rerun()
+        _generate_plan_inline(api_key, st.session_state.user_data, None)
 
     # 戻るボタン
     if st.button("← 戻る"):
@@ -355,11 +407,6 @@ elif st.session_state.step == 3:
         st.session_state.plan_count >= MAX_PLAN_GENERATIONS_PER_SESSION
         and not st.session_state.is_admin
     )
-
-    # STEP 2 からの遷移時に自動起動するフラグを読み取り即クリア
-    auto_generate = st.session_state.get("auto_generate_plan", False)
-    if auto_generate:
-        st.session_state.auto_generate_plan = False
 
     # 既存の計画がある場合は表示
     if st.session_state.training_plan:
@@ -393,7 +440,7 @@ elif st.session_state.step == 3:
                 st.rerun()
 
     elif not plan_limit_reached:
-        if auto_generate or st.button("トレーニング計画を生成する", type="primary", use_container_width=True):
+        if st.button("トレーニング計画を生成する", type="primary", use_container_width=True):
             result_container = []
             error_container = []
 
@@ -409,12 +456,12 @@ elif st.session_state.step == 3:
             status_text = st.empty()
             elapsed = 0
 
+            import time as _time
             while thread.is_alive():
                 elapsed += 0.5
                 progress = min(0.95, elapsed / ESTIMATED_SECONDS)
                 progress_bar.progress(progress)
                 status_text.text(f"Gemini がトレーニング計画を作成中です... （約{ESTIMATED_SECONDS}秒）")
-                import time as _time
                 _time.sleep(0.5)
 
             thread.join()
