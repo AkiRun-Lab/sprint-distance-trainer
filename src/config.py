@@ -3,7 +3,11 @@ SDT（Sprint & Distance Trainer）- 設定定数
 """
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.8.4"
+APP_VERSION = "1.9.0"
+
+# Amazonおすすめリスト⑦（ランナーの補強・筋トレ）の送客先URL。
+# 公開情報（シークレットではない）。リスト未確定時はストアトップにフォールバック。
+AMAZON_FITNESS_LIST_URL = "https://amzn.to/4o3iHCx"
 
 # =============================================
 # Gemini モデル設定

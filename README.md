@@ -20,12 +20,16 @@
 
 ### 必要条件
 
-- Python 3.9 以上
+- **Python 3.10 以上**（コードが型注釈に PEP 604 の `X | None` 構文を使用。3.9 以下では `TypeError: unsupported operand type(s) for |` が出ます）。3.11 を推奨
 - Gemini API キー
 
 ### インストール
 
 ```bash
+# 仮想環境を作成（3.11 推奨）。macOS で 3.11 が無ければ brew install python@3.11
+python3.11 -m venv .venv
+source .venv/bin/activate
+
 pip install -r requirements.txt
 ```
 

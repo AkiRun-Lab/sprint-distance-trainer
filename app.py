@@ -20,7 +20,7 @@ from src.config import (
 from src.screener import screen_video
 from src.analyzer import upload_video, analyze_form, cleanup_video
 from src.planner import calculate_plan_weeks, generate_plan
-from src.ui.components import load_css, render_header, render_step_indicator, render_plan_summary, render_result, render_footer
+from src.ui.components import load_css, render_header, render_step_indicator, render_plan_summary, render_result, render_gear_cta, render_footer
 
 # =============================================
 # ページ設定
@@ -411,6 +411,7 @@ elif st.session_state.step == 3:
     # 既存の計画がある場合は表示
     if st.session_state.training_plan:
         render_result(st.session_state.training_plan)
+        render_gear_cta()
 
         if st.session_state.get("form_diagnosis"):
             with st.expander("フォーム診断結果を確認する", expanded=False):

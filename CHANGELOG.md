@@ -1,5 +1,16 @@
 # Changelog — SDT（Sprint & Distance Trainer）
 
+## v1.9.0 (2026-06-03)
+
+### 追加
+- トレーニング計画（STEP3）の直下に、補強メニュー実践用の筋トレ・フィットネスグッズへ誘導するCTAカード（`render_gear_cta()`）を追加
+  - 計画に含まれる筋力・プライオ・コア・ドリル種目に必要な用品をAmazonおすすめリストへ送客
+  - CTRの高い「計画直後・ダウンロードボタンの前」に配置。フォーム診断（STEP2）側には置かない
+  - リンク先URLは `config.py` の `AMAZON_FITNESS_LIST_URL` で管理（アフィリンクのため `rel="noopener noreferrer sponsored"` を付与）
+  - 収益動線が無かった本アプリにアフィリエイト導線を新設
+
+---
+
 ## v1.8.4 (2026-05-22)
 
 ### 修正
