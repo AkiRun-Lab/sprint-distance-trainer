@@ -16,9 +16,9 @@ from .config import (
     GEMINI_PLANNER_MODEL,
     PLANNER_TEMPERATURE,
     PLANNER_TOP_P,
-    PLANNER_MAX_TOKENS,
     PLANNER_THINKING_BUDGET,
     DISTANCE_CATEGORIES,
+    get_planner_max_tokens,
 )
 from .prompts.plan_prompts import PLANNER_SYSTEM_INSTRUCTION, build_plan_prompt
 
@@ -27,7 +27,12 @@ RETRY_BASE_DELAY = 2
 
 
 def calculate_plan_weeks(race_date_str: str, distance: str) -> tuple[int, str]:
-    """レース日から計画週数と開始日を計算する
+    """レース日から計画週数と開始日を計算する（AMC方式）
+
+    最短週数（min_weeks）だけを下限として固定し、レースまで十分な期間があれば
+    「作成週の月曜日」から計画を始める。レースが最短週数より近い場合のみ、
+    最短週数を確保するため過去（作成週より前）に遡って開始する。
+    上限（default_weeks）による切り捨ては行わない。
 
     Returns:
         (total_weeks, start_date_str)
@@ -35,22 +40,23 @@ def calculate_plan_weeks(race_date_str: str, distance: str) -> tuple[int, str]:
     race_dt = datetime.strptime(race_date_str, "%Y-%m-%d")
     today = datetime.today()
     min_weeks = DISTANCE_CATEGORIES[distance]["min_weeks"]
-    default_weeks = DISTANCE_CATEGORIES[distance]["default_weeks"]
 
-    # 月曜日基準で週数を計算（曜日による端数をなくす）
+    # 月曜日基準で計算（曜日による端数をなくす）
     race_week_monday = race_dt - timedelta(days=race_dt.weekday())
     today_monday = today - timedelta(days=today.weekday())
-    actual_weeks = max(0, (race_week_monday - today_monday).days // 7)
 
-    if actual_weeks < min_weeks:
-        total_weeks = min_weeks
-    elif actual_weeks > default_weeks:
-        total_weeks = default_weeks
+    # 作成週〜レース週を含む inclusive な週数
+    span = max(0, (race_week_monday - today_monday).days // 7) + 1
+
+    if span >= min_weeks:
+        # 十分な期間がある → 作成週の月曜日から開始
+        total_weeks = span
+        start_dt = today_monday
     else:
-        total_weeks = actual_weeks
+        # レースが最短週数より近い → 最短週数を確保するため過去に遡る
+        total_weeks = min_weeks
+        start_dt = race_week_monday - timedelta(weeks=min_weeks - 1)
 
-    # 開始日: レース週月曜日から逆算（常にMonday aligned）
-    start_dt = race_week_monday - timedelta(weeks=total_weeks - 1)
     return total_weeks, start_dt.strftime("%Y年%m月%d日")
 
 
@@ -82,6 +88,19 @@ def _parse_plan_json(raw: str) -> dict:
 
 
 _DAY_MAP = {"月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6}
+
+
+def _extract_weekday(date_field: str) -> Optional[str]:
+    """AIが返すdate文字列から曜日文字（月〜日）を取り出す。
+
+    AIはスキーマ（"date": "月"）を無視して "2026-06-15(月)" や "6/15(月)" の
+    ような完全日付を返すことがある。日付計算はコード側の start_dt を正とするため、
+    文字列に含まれる曜日文字だけを抽出して返す（見つからなければ None）。
+    """
+    for ch in date_field:
+        if ch in _DAY_MAP:
+            return ch
+    return None
 
 
 def _plan_json_to_markdown(plan_data: dict, start_date: str = "", practice_races: str = "") -> str:
@@ -147,12 +166,15 @@ def _plan_json_to_markdown(plan_data: dict, start_date: str = "", practice_races
             lines.append("| 曜日 | 練習内容 | 詳細 | 強度 | 休憩 | ポイント |")
             lines.append("|------|---------|------|------|------|---------|")
             for day in days:
-                day_name = day.get("date", "")
-                if start_dt and day_name in _DAY_MAP:
-                    target_dt = start_dt + timedelta(weeks=(week_num - 1), days=_DAY_MAP[day_name])
-                    date_label = f"{target_dt.month}/{target_dt.day}({day_name})"
+                day_raw = day.get("date", "")
+                # AIがdate欄に何を入れても曜日文字を抽出し、start_dt から日付を再計算する。
+                # これによりAIが計画の開始日をずらせなくなる（日付の正はコード側）。
+                weekday = _extract_weekday(day_raw)
+                if start_dt and weekday is not None:
+                    target_dt = start_dt + timedelta(weeks=(week_num - 1), days=_DAY_MAP[weekday])
+                    date_label = f"{target_dt.month}/{target_dt.day}({weekday})"
                 else:
-                    date_label = day_name
+                    date_label = day_raw
                 menu = day.get("menu", "")
                 detail = day.get("detail", "")
                 intensity = day.get("intensity", "")
@@ -208,7 +230,7 @@ def generate_plan(
                     system_instruction=PLANNER_SYSTEM_INSTRUCTION,
                     temperature=PLANNER_TEMPERATURE,
                     top_p=PLANNER_TOP_P,
-                    max_output_tokens=PLANNER_MAX_TOKENS,
+                    max_output_tokens=get_planner_max_tokens(total_weeks),
                     response_mime_type="application/json",
                     thinking_config=types.ThinkingConfig(
                         thinking_budget=PLANNER_THINKING_BUDGET,

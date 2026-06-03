@@ -164,6 +164,8 @@ _JSON_SCHEMA_INSTRUCTION = """
 
 以下のJSONスキーマに厳密に従って出力してください。
 全{total_weeks}週分のweekly_schedulesを必ず出力すること（省略・途中終了禁止）。
+各日の "date" 欄は曜日名（月・火・水・木・金・土・日）のみを入れること。
+日付（YYYY-MM-DD や M/D 等）は書かないこと。実際のカレンダー日付はシステム側で算出する。
 
 ```json
 {{

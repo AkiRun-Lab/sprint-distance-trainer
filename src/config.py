@@ -3,7 +3,7 @@ SDT（Sprint & Distance Trainer）- 設定定数
 """
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.9.0"
+APP_VERSION = "1.10.0"
 
 # Amazonおすすめリスト⑦（ランナーの補強・筋トレ）の送客先URL。
 # 公開情報（シークレットではない）。リスト未確定時はストアトップにフォールバック。
@@ -34,8 +34,20 @@ ANALYZER_THINKING_BUDGET = 16384
 
 PLANNER_TEMPERATURE = 0.2
 PLANNER_TOP_P = 0.95
-PLANNER_MAX_TOKENS = 32768
+PLANNER_MAX_TOKENS = 32768  # フォールバック上限（get_planner_max_tokens未使用パス向け）
 PLANNER_THINKING_BUDGET = 8192
+
+
+def get_planner_max_tokens(total_weeks: int) -> int:
+    """計画週数に応じた出力トークン上限を返す（AMC方式）。
+
+    calculate_plan_weeks の上限撤廃により週数が大きくなり得るため、
+    固定値だと遠いレースで JSON が途中で切れる。週数に比例させて確保する。
+    SDTの週表は6列（曜日・内容・詳細・強度・休憩・ポイント）と密なため
+    AMC（1200/週）よりやや多めの 1500/週 とし、モデル上限内に収める。
+    """
+    tokens = total_weeks * 1500 + 4096
+    return max(PLANNER_MAX_TOKENS, min(tokens, 65536))
 
 # =============================================
 # 動画アップロード設定
