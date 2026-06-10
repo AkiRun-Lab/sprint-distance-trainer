@@ -14,9 +14,7 @@ from google.genai import types
 
 from .config import (
     GEMINI_PLANNER_MODEL,
-    PLANNER_TEMPERATURE,
-    PLANNER_TOP_P,
-    PLANNER_THINKING_BUDGET,
+    PLANNER_THINKING_LEVEL,
     DISTANCE_CATEGORIES,
     get_planner_max_tokens,
 )
@@ -228,12 +226,10 @@ def generate_plan(
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=PLANNER_SYSTEM_INSTRUCTION,
-                    temperature=PLANNER_TEMPERATURE,
-                    top_p=PLANNER_TOP_P,
                     max_output_tokens=get_planner_max_tokens(total_weeks),
                     response_mime_type="application/json",
                     thinking_config=types.ThinkingConfig(
-                        thinking_budget=PLANNER_THINKING_BUDGET,
+                        thinking_level=PLANNER_THINKING_LEVEL,
                     ),
                 ),
             )

@@ -20,7 +20,7 @@ from google.genai import types
 from .config import (
     GEMINI_ANALYZER_MODEL,
     ANALYZER_MAX_TOKENS,
-    ANALYZER_THINKING_BUDGET,
+    ANALYZER_THINKING_LEVEL,
     VIDEO_POLL_INTERVAL,
     VIDEO_UPLOAD_TIMEOUT,
 )
@@ -97,7 +97,7 @@ def analyze_form(client: genai.Client, video_file, context: str) -> str:
                 system_instruction=ANALYZER_SYSTEM_INSTRUCTION,
                 max_output_tokens=ANALYZER_MAX_TOKENS,
                 thinking_config=types.ThinkingConfig(
-                    thinking_budget=ANALYZER_THINKING_BUDGET,
+                    thinking_level=ANALYZER_THINKING_LEVEL,
                 ),
             ),
         )

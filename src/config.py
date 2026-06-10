@@ -3,7 +3,7 @@ SDT（Sprint & Distance Trainer）- 設定定数
 """
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.10.0"
+APP_VERSION = "1.10.1"
 
 # Amazonおすすめリスト⑦（ランナーの補強・筋トレ）の送客先URL。
 # 公開情報（シークレットではない）。リスト未確定時はストアトップにフォールバック。
@@ -20,22 +20,21 @@ GEMINI_SCREENER_MODEL = "gemini-3.1-flash-lite"
 GEMINI_ANALYZER_MODEL = "gemini-3.5-flash"
 
 # トレーニング計画生成（構造化出力）
-GEMINI_PLANNER_MODEL = "gemini-3-flash-preview"
+GEMINI_PLANNER_MODEL = "gemini-3.5-flash"
 
 # =============================================
 # Gemini API パラメータ
+# 注: temperature / top_p / top_k は全 Gemini 3.x モデルで非推奨となり削除（公式: デフォルト設定が最適化済み）
+# thinking は thinking_level（minimal/low/medium/high）を使用。深い推論用途のため high を指定
 # =============================================
 
-SCREENER_TEMPERATURE = 0.2
 SCREENER_MAX_TOKENS = 256
 
 ANALYZER_MAX_TOKENS = 16384
-ANALYZER_THINKING_BUDGET = 16384
+ANALYZER_THINKING_LEVEL = "high"
 
-PLANNER_TEMPERATURE = 0.2
-PLANNER_TOP_P = 0.95
 PLANNER_MAX_TOKENS = 32768  # フォールバック上限（get_planner_max_tokens未使用パス向け）
-PLANNER_THINKING_BUDGET = 8192
+PLANNER_THINKING_LEVEL = "high"
 
 
 def get_planner_max_tokens(total_weeks: int) -> int:

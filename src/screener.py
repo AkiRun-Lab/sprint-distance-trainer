@@ -8,7 +8,7 @@ import json
 from google import genai
 from google.genai import types
 
-from .config import GEMINI_SCREENER_MODEL, SCREENER_TEMPERATURE, SCREENER_MAX_TOKENS
+from .config import GEMINI_SCREENER_MODEL, SCREENER_MAX_TOKENS
 from .prompts.form_prompts import SCREENER_SYSTEM_INSTRUCTION, SCREENER_USER_PROMPT
 
 
@@ -24,7 +24,6 @@ def screen_video(client: genai.Client, video_file) -> dict:
             contents=[video_file, SCREENER_USER_PROMPT],
             config=types.GenerateContentConfig(
                 system_instruction=SCREENER_SYSTEM_INSTRUCTION,
-                temperature=SCREENER_TEMPERATURE,
                 max_output_tokens=SCREENER_MAX_TOKENS,
             ),
         )
