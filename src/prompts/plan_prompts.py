@@ -182,7 +182,7 @@ _JSON_SCHEMA_INSTRUCTION = """
     "training_days": {training_days},
     "has_track": "{has_track}",
     "has_gym": "{has_gym}",
-    "concerns": "{concerns_escaped}",
+    "concerns": "{concerns}",
     "form_focus": "フォーム診断がある場合のみ：主な改善テーマを1〜2文で記述"
   }},
   "phase_overview": "3フェーズの構成と各フェーズの目的・期間を説明",
@@ -270,8 +270,8 @@ def build_plan_prompt(
     gym_available = "あり" if user_data.get("has_gym") else "なし"
     concerns = user_data.get("concerns", "なし") or "なし"
 
-    # concerns に波括弧が含まれると .format() が壊れるため先にエスケープ
-    concerns_escaped = concerns.replace("{", "{{").replace("}", "}}")
+    # 注: .format() の引数値は再走査されないため、ユーザー入力の波括弧の
+    # エスケープは不要（エスケープすると {{ }} のままAIに渡り劣化する）
 
     practice_races = user_data.get("practice_races", "") or ""
     practice_races_section = ""
@@ -287,22 +287,20 @@ def build_plan_prompt(
                 "",
             ]
             for p in parsed:
-                raw_escaped = p["raw"].replace("{", "{{").replace("}", "}}")
                 if p["week_num"] is None:
                     section_lines.append(
                         f"- ※計画開始前のため第1週（{p['week_range']}）の{p['day_name']}曜日"
-                        f"（{p['date_str']}）に組み込む：{raw_escaped}"
+                        f"（{p['date_str']}）に組み込む：{p['raw']}"
                     )
                 else:
                     section_lines.append(
-                        f"- 第{p['week_num']}週（{p['week_range']}）の{p['day_name']}曜日（{p['date_str']}）：{raw_escaped}"
+                        f"- 第{p['week_num']}週（{p['week_range']}）の{p['day_name']}曜日（{p['date_str']}）：{p['raw']}"
                     )
             practice_races_section = "\n".join(section_lines)
         else:
             # パース失敗フォールバック（旧挙動）
-            practice_races_escaped = practice_races.replace("{", "{{").replace("}", "}}")
             practice_races_section = (
-                f"## 練習レース・記録会\n{practice_races_escaped}\n"
+                f"## 練習レース・記録会\n{practice_races}\n"
                 "※指定された日に練習レース（記録会）を組み込み、"
                 "前日は軽め調整（ウォームアップ程度）とすること。"
             )
@@ -319,7 +317,7 @@ def build_plan_prompt(
         training_days=user_data["training_days"],
         has_track=track_available,
         has_gym=gym_available,
-        concerns_escaped=concerns_escaped,
+        concerns=concerns,
     )
 
     return _BASE_PROMPT.format(

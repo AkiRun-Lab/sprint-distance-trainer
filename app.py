@@ -35,14 +35,23 @@ st.set_page_config(page_title=APP_NAME, page_icon="⚡", layout="centered", init
 _cookie_controller = CookieController()
 
 
+def _safe_count(value) -> int:
+    """cookie値をintに変換する。破損・改ざん値は0扱い（読み込み不能で
+    counts_loaded が永遠に立たなくなるのを防ぐ）"""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _load_cookie_counts(controller: CookieController):
     """読み込み専用。書き込みは cookie_write_pending ブロックで行う。"""
     today = jst_now().strftime("%Y-%m-%d")
     cookie_date = controller.get("sdt_date") or ""
     if cookie_date != today:
         return 0, 0
-    diag = int(controller.get("sdt_diag_count") or "0")
-    plan = int(controller.get("sdt_plan_count") or "0")
+    diag = _safe_count(controller.get("sdt_diag_count") or "0")
+    plan = _safe_count(controller.get("sdt_plan_count") or "0")
     return diag, plan
 
 
@@ -276,7 +285,7 @@ if st.session_state.step == 1:
             label_visibility="collapsed",
         )
 
-        submitted = st.form_submit_button("次へ → フォーム診断", use_container_width=True)
+        submitted = st.form_submit_button("次へ → フォーム診断", width="stretch")
 
     if submitted:
         errors = []
@@ -323,7 +332,14 @@ elif st.session_state.step == 2:
         and not st.session_state.is_admin
     )
 
-    if not diagnosis_limit_reached:
+    if st.session_state.form_diagnosis:
+        # 診断結果を保持中：再アップロード導線・回数制限警告・スキップは出さない
+        # （スキップを出すと押した瞬間に取得済みの診断結果が破棄されるため）
+        uploaded_file = None
+        context_input = ""
+        run_diagnosis = False
+        skip_diagnosis = False
+    elif not diagnosis_limit_reached:
         uploaded_file = st.file_uploader(
             "動画をアップロード（MP4/MOV/AVI/WEBM、200MBまで）",
             type=SUPPORTED_VIDEO_TYPES,
@@ -344,16 +360,16 @@ elif st.session_state.step == 2:
             run_diagnosis = st.button(
                 "フォームを診断する",
                 disabled=(uploaded_file is None),
-                use_container_width=True,
+                width="stretch",
             )
         with col_skip:
             skip_diagnosis = st.button(
                 "スキップして計画を作成する",
-                use_container_width=True,
+                width="stretch",
             )
     else:
         st.warning(f"1日あたりのフォーム診断は{MAX_DIAGNOSES_PER_SESSION}回までです。明日またお試しください。")
-        skip_diagnosis = st.button("スキップして計画を作成する", use_container_width=True)
+        skip_diagnosis = st.button("スキップして計画を作成する", width="stretch")
         run_diagnosis = False
         uploaded_file = None
         context_input = ""
@@ -397,7 +413,7 @@ elif st.session_state.step == 2:
     # 次のステップへ進むボタン（診断完了後）— cleanup完了後にまとめて表示
     if st.session_state.form_diagnosis:
         st.success("診断完了！")
-        if st.button("計画を作成する →", use_container_width=True, type="primary"):
+        if st.button("計画を作成する →", width="stretch", type="primary"):
             _generate_plan_inline(api_key, st.session_state.user_data, st.session_state.form_diagnosis)
 
     # スキップ
@@ -452,17 +468,17 @@ elif st.session_state.step == 3:
                 data=_download_content.encode("utf-8-sig"),
                 file_name=f"sdt_plan_{user_data['distance']}_{today_str}.md",
                 mime="text/markdown",
-                use_container_width=True,
+                width="stretch",
             )
         with col_new:
-            if st.button("最初からやり直す", use_container_width=True):
+            if st.button("最初からやり直す", width="stretch"):
                 for key in ["step", "user_data", "form_diagnosis", "use_form_in_plan", "training_plan"]:
                     if key in st.session_state:
                         del st.session_state[key]
                 st.rerun()
 
     elif not plan_limit_reached:
-        if st.button("トレーニング計画を生成する", type="primary", use_container_width=True):
+        if st.button("トレーニング計画を生成する", type="primary", width="stretch"):
             if _run_plan_generation(api_key, user_data, form_diagnosis):
                 st.rerun()
     else:
