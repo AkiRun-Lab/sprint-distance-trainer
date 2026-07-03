@@ -1,9 +1,17 @@
 """
 SDT（Sprint & Distance Trainer）- 設定定数
 """
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+
+def jst_now() -> datetime:
+    """日本時間の現在時刻（naive）。Streamlit Cloud（UTC）での日付ズレ防止用。"""
+    return datetime.now(ZoneInfo("Asia/Tokyo")).replace(tzinfo=None)
+
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.10.1"
+APP_VERSION = "1.10.2"
 
 # Amazonおすすめリスト⑦（ランナーの補強・筋トレ）の送客先URL。
 # 公開情報（シークレットではない）。リスト未確定時はストアトップにフォールバック。

@@ -28,7 +28,8 @@ def screen_video(client: genai.Client, video_file) -> dict:
             ),
         )
 
-        raw = response.text.strip()
+        # 本文Noneでも fail-open（json.JSONDecodeError → 診断に進む）に落とす
+        raw = (response.text or "").strip()
 
         if raw.startswith("```"):
             raw = raw.split("```")[1]

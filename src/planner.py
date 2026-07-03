@@ -17,6 +17,7 @@ from .config import (
     PLANNER_THINKING_LEVEL,
     DISTANCE_CATEGORIES,
     get_planner_max_tokens,
+    jst_now,
 )
 from .prompts.plan_prompts import PLANNER_SYSTEM_INSTRUCTION, build_plan_prompt
 
@@ -36,7 +37,9 @@ def calculate_plan_weeks(race_date_str: str, distance: str) -> tuple[int, str]:
         (total_weeks, start_date_str)
     """
     race_dt = datetime.strptime(race_date_str, "%Y-%m-%d")
-    today = datetime.today()
+    # 時刻を0:00に正規化する。時刻が残ると月曜同士の差が「k*7日 - 時刻」になり
+    # timedelta.days の切り捨てで週数が1週不足（レース週が計画から落ちる）する
+    today = jst_now().replace(hour=0, minute=0, second=0, microsecond=0)
     min_weeks = DISTANCE_CATEGORIES[distance]["min_weeks"]
 
     # 月曜日基準で計算（曜日による端数をなくす）
@@ -233,7 +236,18 @@ def generate_plan(
                     ),
                 ),
             )
-            plan_data = _parse_plan_json(response.text)
+            # 空レスポンスガード：本文NoneをパースするとAttributeErrorの生エラーが表示される
+            text = response.text
+            if not text or not text.strip():
+                finish_reason = ""
+                try:
+                    finish_reason = response.candidates[0].finish_reason.name
+                except Exception:
+                    pass
+                detail = f"（finish_reason: {finish_reason}）" if finish_reason else ""
+                raise ValueError(f"EMPTY_RESPONSE: AIが計画テキストを返しませんでした{detail}")
+
+            plan_data = _parse_plan_json(text)
             markdown = _plan_json_to_markdown(plan_data, start_date, user_data.get("practice_races", ""))
             result_container.append(markdown)
             return

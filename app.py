@@ -16,6 +16,7 @@ from src.config import (
     SUPPORTED_VIDEO_TYPES,
     MAX_DIAGNOSES_PER_SESSION,
     MAX_PLAN_GENERATIONS_PER_SESSION,
+    jst_now,
 )
 from src.screener import screen_video
 from src.analyzer import upload_video, analyze_form, cleanup_video
@@ -35,7 +36,7 @@ _cookie_controller = CookieController()
 
 def _load_cookie_counts(controller: CookieController):
     """読み込み専用。書き込みは cookie_write_pending ブロックで行う。"""
-    today = datetime.today().strftime("%Y-%m-%d")
+    today = jst_now().strftime("%Y-%m-%d")
     cookie_date = controller.get("sdt_date") or ""
     if cookie_date != today:
         return 0, 0
@@ -144,9 +145,9 @@ if st.session_state.get("cookie_write_pending"):
         same_site='none',
         secure=True,
         partitioned=True,
-        expires=datetime.now() + timedelta(days=2),
+        expires=jst_now() + timedelta(days=2),
     )
-    _cookie_controller.set("sdt_date", datetime.today().strftime("%Y-%m-%d"), **_cookie_opts)
+    _cookie_controller.set("sdt_date", jst_now().strftime("%Y-%m-%d"), **_cookie_opts)
     _cookie_controller.set("sdt_diag_count", str(st.session_state.diagnosis_count), **_cookie_opts)
     _cookie_controller.set("sdt_plan_count", str(st.session_state.plan_count), **_cookie_opts)
     st.session_state.cookie_write_pending = False
@@ -229,8 +230,8 @@ if st.session_state.step == 1:
 
         race_date = st.date_input(
             "目標レース日",
-            value=datetime.today() + timedelta(weeks=dist_info["default_weeks"]),
-            min_value=datetime.today() + timedelta(days=1),
+            value=jst_now() + timedelta(weeks=dist_info["default_weeks"]),
+            min_value=jst_now() + timedelta(days=1),
         )
 
         st.markdown('練習レース・記録会 <span style="background-color: #1976D2; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 4px;">任意</span>', unsafe_allow_html=True)
@@ -419,7 +420,7 @@ elif st.session_state.step == 3:
 
         col_dl, col_new = st.columns(2)
         with col_dl:
-            today_str = datetime.now().strftime("%Y%m%d")
+            today_str = jst_now().strftime("%Y%m%d")
             _download_content = st.session_state.training_plan
             if st.session_state.form_diagnosis:
                 _download_content += (
