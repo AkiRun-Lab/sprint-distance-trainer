@@ -2,6 +2,7 @@
 SDT（Sprint & Distance Trainer）
 短距離〜中距離ランナー向けトレーニング計画生成ツール
 """
+import hmac
 import threading
 from datetime import datetime, timedelta
 
@@ -45,21 +46,17 @@ def _load_cookie_counts(controller: CookieController):
     return diag, plan
 
 
-def _generate_plan_inline(api_key, user_data, form_diagnosis):
-    """STEP 2 のボタン押下時にインラインで計画生成を実行し、プログレスバーを表示する。
+GENERATION_ESTIMATED_SECONDS = 60
+GENERATION_TIMEOUT_SECONDS = 240  # リトライ（最大3回）込みの全体上限
 
-    中間 st.rerun() なしで即座に while ループに入るため、
-    ブラウザに STEP 2 の dim overlay が残るフリーズを防ぐ。
+
+def _run_plan_generation(api_key, user_data, form_diagnosis) -> bool:
+    """計画生成をスレッドで実行し、プログレスバーを表示する。成功時 True。
+
+    ボタン押下と同一スクリプト実行内で呼ぶこと。中間 st.rerun() を挟むと
+    ブラウザに前画面の dim overlay が残るフリーズが起きる（v1.8.4）。
     """
     import time as _time
-
-    plan_limit_reached = (
-        st.session_state.plan_count >= MAX_PLAN_GENERATIONS_PER_SESSION
-        and not st.session_state.is_admin
-    )
-    if plan_limit_reached:
-        st.session_state.step = 3
-        st.rerun()
 
     total_weeks, start_date = calculate_plan_weeks(user_data["race_date"], user_data["distance"])
     result_container = []
@@ -71,15 +68,21 @@ def _generate_plan_inline(api_key, user_data, form_diagnosis):
     )
     thread.start()
 
-    ESTIMATED_SECONDS = 60
     progress_bar = st.progress(0.0)
     status_text = st.empty()
-    elapsed = 0
+    elapsed = 0.0
     while thread.is_alive():
+        if elapsed >= GENERATION_TIMEOUT_SECONDS:
+            # APIハングでプログレスバーが永遠に止まらないよう打ち切る
+            # （スレッドはdaemonのため放置してよい。成功してもカウントは増えない）
+            progress_bar.empty()
+            status_text.empty()
+            st.error("⚠️ 計画の生成に時間がかかりすぎています。時間をおいて再試行してください。")
+            return False
         elapsed += 0.5
-        progress = min(0.95, elapsed / ESTIMATED_SECONDS)
+        progress = min(0.95, elapsed / GENERATION_ESTIMATED_SECONDS)
         progress_bar.progress(progress)
-        status_text.text(f"Gemini がトレーニング計画を作成中です... （約{ESTIMATED_SECONDS}秒）")
+        status_text.text(f"Gemini がトレーニング計画を作成中です... （約{GENERATION_ESTIMATED_SECONDS}秒）")
         _time.sleep(0.5)
 
     thread.join()
@@ -90,16 +93,31 @@ def _generate_plan_inline(api_key, user_data, form_diagnosis):
         st.session_state.training_plan = result_container[0]
         st.session_state.plan_count += 1
         st.session_state.cookie_write_pending = True
+        return True
+
+    err = error_container[0] if error_container else "UNKNOWN"
+    if "503_SERVICE_UNAVAILABLE" in err:
+        st.error("⚠️ サーバーが混雑しています。しばらく待ってから再試行してください。")
+    elif "429_RATE_LIMITED" in err:
+        st.error("⚠️ APIのリクエスト上限に達しました。しばらく待ってから再試行してください。")
+    else:
+        st.error(f"⚠️ 計画の生成に失敗しました: {err}")
+    return False
+
+
+def _generate_plan_inline(api_key, user_data, form_diagnosis):
+    """STEP 2 のボタン押下時にインラインで計画生成を実行し、STEP 3 へ遷移する。"""
+    plan_limit_reached = (
+        st.session_state.plan_count >= MAX_PLAN_GENERATIONS_PER_SESSION
+        and not st.session_state.is_admin
+    )
+    if plan_limit_reached:
         st.session_state.step = 3
         st.rerun()
-    else:
-        err = error_container[0] if error_container else "UNKNOWN"
-        if "503_SERVICE_UNAVAILABLE" in err:
-            st.error("⚠️ サーバーが混雑しています。しばらく待ってから再試行してください。")
-        elif "429_RATE_LIMITED" in err:
-            st.error("⚠️ APIのリクエスト上限に達しました。しばらく待ってから再試行してください。")
-        else:
-            st.error(f"⚠️ 計画の生成に失敗しました: {err}")
+
+    if _run_plan_generation(api_key, user_data, form_diagnosis):
+        st.session_state.step = 3
+        st.rerun()
 
 # =============================================
 # セッション状態の初期化
@@ -175,7 +193,9 @@ with st.sidebar:
     else:
         admin_pw = st.text_input("管理者パスワード", type="password", key="admin_pw_input")
         if st.button("ログイン"):
-            if admin_pw == st.secrets.get("ADMIN_PASSWORD", ""):
+            expected_pw = st.secrets.get("ADMIN_PASSWORD", "")
+            # ADMIN_PASSWORD未設定時は空パスワードが一致してしまうため、未設定なら常に拒否
+            if expected_pw and hmac.compare_digest(admin_pw, expected_pw):
                 st.session_state.is_admin = True
                 st.rerun()
             else:
@@ -443,46 +463,8 @@ elif st.session_state.step == 3:
 
     elif not plan_limit_reached:
         if st.button("トレーニング計画を生成する", type="primary", use_container_width=True):
-            result_container = []
-            error_container = []
-
-            thread = threading.Thread(
-                target=generate_plan,
-                args=(api_key, user_data, form_diagnosis, total_weeks, start_date, result_container, error_container),
-                daemon=True,
-            )
-            thread.start()
-
-            ESTIMATED_SECONDS = 60
-            progress_bar = st.progress(0.0)
-            status_text = st.empty()
-            elapsed = 0
-
-            import time as _time
-            while thread.is_alive():
-                elapsed += 0.5
-                progress = min(0.95, elapsed / ESTIMATED_SECONDS)
-                progress_bar.progress(progress)
-                status_text.text(f"Gemini がトレーニング計画を作成中です... （約{ESTIMATED_SECONDS}秒）")
-                _time.sleep(0.5)
-
-            thread.join()
-            progress_bar.progress(1.0)
-            status_text.empty()
-
-            if result_container:
-                st.session_state.training_plan = result_container[0]
-                st.session_state.plan_count += 1
-                st.session_state.cookie_write_pending = True
+            if _run_plan_generation(api_key, user_data, form_diagnosis):
                 st.rerun()
-            else:
-                err = error_container[0] if error_container else "UNKNOWN"
-                if "503_SERVICE_UNAVAILABLE" in err:
-                    st.error("⚠️ サーバーが混雑しています。しばらく待ってから再試行してください。")
-                elif "429_RATE_LIMITED" in err:
-                    st.error("⚠️ APIのリクエスト上限に達しました。しばらく待ってから再試行してください。")
-                else:
-                    st.error(f"⚠️ 計画の生成に失敗しました: {err}")
     else:
         st.warning(f"1日あたりの計画生成は{MAX_PLAN_GENERATIONS_PER_SESSION}回までです。明日またお試しください。")
 

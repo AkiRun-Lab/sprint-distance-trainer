@@ -1,6 +1,7 @@
 """
 SDT - UIコンポーネント
 """
+import html
 import os
 import streamlit as st
 
@@ -126,6 +127,9 @@ def render_step_indicator(current_step: int) -> None:
 
 def render_plan_summary(user_data: dict, total_weeks: int, has_form: bool) -> None:
     form_label = "あり" if has_form else "なし"
+    # 自由入力のタイム欄は「<」や「&」でHTMLが崩れるためエスケープする
+    target_time = html.escape(str(user_data["target_time"]))
+    current_best = html.escape(str(user_data["current_best"]))
     st.markdown(f"""
 <div class="plan-summary">
     <h3>📋 生成する計画の概要</h3>
@@ -136,7 +140,7 @@ def render_plan_summary(user_data: dict, total_weeks: int, has_form: bool) -> No
         </div>
         <div class="summary-item">
             <div class="label">目標タイム</div>
-            <div class="value">{user_data['target_time']}</div>
+            <div class="value">{target_time}</div>
         </div>
         <div class="summary-item">
             <div class="label">計画期間</div>
@@ -144,7 +148,7 @@ def render_plan_summary(user_data: dict, total_weeks: int, has_form: bool) -> No
         </div>
         <div class="summary-item">
             <div class="label">現在のベスト</div>
-            <div class="value">{user_data['current_best']}</div>
+            <div class="value">{current_best}</div>
         </div>
         <div class="summary-item">
             <div class="label">週練習日数</div>

@@ -25,6 +25,14 @@ MAX_RETRIES = 2
 RETRY_BASE_DELAY = 2
 
 
+def _finish_reason(response) -> str:
+    """レスポンスから finish_reason 名を取り出す（取得できなければ空文字）"""
+    try:
+        return response.candidates[0].finish_reason.name
+    except Exception:
+        return ""
+
+
 def calculate_plan_weeks(race_date_str: str, distance: str) -> tuple[int, str]:
     """レース日から計画週数と開始日を計算する（AMC方式）
 
@@ -90,6 +98,8 @@ def _parse_plan_json(raw: str) -> dict:
 
 _DAY_MAP = {"月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6}
 
+_WEEKDAY_PAREN_RE = re.compile(r"[(（]([月火水木金土日])[)）]")
+
 
 def _extract_weekday(date_field: str) -> Optional[str]:
     """AIが返すdate文字列から曜日文字（月〜日）を取り出す。
@@ -97,8 +107,13 @@ def _extract_weekday(date_field: str) -> Optional[str]:
     AIはスキーマ（"date": "月"）を無視して "2026-06-15(月)" や "6/15(月)" の
     ような完全日付を返すことがある。日付計算はコード側の start_dt を正とするため、
     文字列に含まれる曜日文字だけを抽出して返す（見つからなければ None）。
+    「6月15日(水)」のような和式日付では月の漢字「月」を曜日と誤認しないよう、
+    括弧内の曜日を優先し、なければ末尾から走査する。
     """
-    for ch in date_field:
+    m = _WEEKDAY_PAREN_RE.search(date_field)
+    if m:
+        return m.group(1)
+    for ch in reversed(date_field):
         if ch in _DAY_MAP:
             return ch
     return None
@@ -157,10 +172,16 @@ def _plan_json_to_markdown(plan_data: dict, start_date: str = "", practice_races
         lines.append("")
 
     weekly_schedules = plan_data.get("weekly_schedules", [])
-    for week_data in weekly_schedules:
+    for seq, week_data in enumerate(weekly_schedules, start=1):
         week_num = week_data.get("week", "")
         phase = week_data.get("phase", "")
-        lines.append(f"## 第{week_num}週　{phase}")
+        # AIが week を文字列（"1"）や欠落で返しても日付計算が壊れないようint化。
+        # 変換不能なら配列順（1始まり）で代替する
+        try:
+            week_num_int = int(week_num)
+        except (TypeError, ValueError):
+            week_num_int = seq
+        lines.append(f"## 第{week_num_int}週　{phase}")
 
         days = week_data.get("days", [])
         if days:
@@ -172,7 +193,7 @@ def _plan_json_to_markdown(plan_data: dict, start_date: str = "", practice_races
                 # これによりAIが計画の開始日をずらせなくなる（日付の正はコード側）。
                 weekday = _extract_weekday(day_raw)
                 if start_dt and weekday is not None:
-                    target_dt = start_dt + timedelta(weeks=(week_num - 1), days=_DAY_MAP[weekday])
+                    target_dt = start_dt + timedelta(weeks=(week_num_int - 1), days=_DAY_MAP[weekday])
                     date_label = f"{target_dt.month}/{target_dt.day}({weekday})"
                 else:
                     date_label = day_raw
@@ -239,15 +260,18 @@ def generate_plan(
             # 空レスポンスガード：本文NoneをパースするとAttributeErrorの生エラーが表示される
             text = response.text
             if not text or not text.strip():
-                finish_reason = ""
-                try:
-                    finish_reason = response.candidates[0].finish_reason.name
-                except Exception:
-                    pass
-                detail = f"（finish_reason: {finish_reason}）" if finish_reason else ""
+                fr = _finish_reason(response)
+                detail = f"（finish_reason: {fr}）" if fr else ""
                 raise ValueError(f"EMPTY_RESPONSE: AIが計画テキストを返しませんでした{detail}")
 
-            plan_data = _parse_plan_json(text)
+            try:
+                plan_data = _parse_plan_json(text)
+            except json.JSONDecodeError:
+                # 出力トークン切れによるJSON途中切れは、同条件で再試行しても同じ場所で
+                # 切れるため、リトライせず即エラーにする（課金3倍を防ぐ）
+                if _finish_reason(response) == "MAX_TOKENS":
+                    raise ValueError("MAX_TOKENS: 計画が長すぎて出力が途中で切れました")
+                raise
             markdown = _plan_json_to_markdown(plan_data, start_date, user_data.get("practice_races", ""))
             result_container.append(markdown)
             return
@@ -259,6 +283,9 @@ def generate_plan(
                 last_error = "503_SERVICE_UNAVAILABLE"
             elif "429" in err or "Resource Exhausted" in err:
                 last_error = "429_RATE_LIMITED"
+            elif err.startswith("MAX_TOKENS"):
+                # トークン切れは再試行しても改善しないため即断念
+                break
 
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_BASE_DELAY * (2 ** attempt))
