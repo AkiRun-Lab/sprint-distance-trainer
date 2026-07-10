@@ -17,12 +17,22 @@ from src.config import (
     SUPPORTED_VIDEO_TYPES,
     MAX_DIAGNOSES_PER_SESSION,
     MAX_PLAN_GENERATIONS_PER_SESSION,
+    SCORE_ITEMS,
     jst_now,
 )
 from src.screener import screen_video
-from src.analyzer import upload_video, analyze_form, cleanup_video
+from src.analyzer import upload_video, analyze_form, cleanup_video, extract_scores_json, extract_weakness_tag
 from src.planner import calculate_plan_weeks, generate_plan
-from src.ui.components import load_css, render_header, render_step_indicator, render_plan_summary, render_result, render_gear_cta, render_footer
+from src.ui.components import (
+    load_css,
+    render_header,
+    render_step_indicator,
+    render_plan_summary,
+    render_result,
+    render_gear_cta,
+    render_score_radar,
+    render_footer,
+)
 
 # =============================================
 # ページ設定
@@ -136,6 +146,8 @@ def _init_session_state():
         "step": 1,
         "user_data": {},
         "form_diagnosis": None,
+        "form_scores": None,
+        "form_weakness": "general",
         "use_form_in_plan": False,
         "training_plan": None,
         "diagnosis_count": 0,
@@ -393,7 +405,11 @@ elif st.session_state.step == 2:
                     st.write("Gemini が動画を解析しています（1〜2分かかる場合があります）")
                     diagnosis_result = analyze_form(client, video_file, context_input)
 
-                st.session_state.form_diagnosis = diagnosis_result
+                result_body, scores = extract_scores_json(diagnosis_result)
+                result_body, weakness = extract_weakness_tag(result_body)
+                st.session_state.form_diagnosis = result_body
+                st.session_state.form_scores = scores
+                st.session_state.form_weakness = weakness
                 st.session_state.use_form_in_plan = True
                 st.session_state.diagnosis_count += 1
                 st.session_state.cookie_write_pending = True
@@ -413,6 +429,8 @@ elif st.session_state.step == 2:
     # 次のステップへ進むボタン（診断完了後）— cleanup完了後にまとめて表示
     if st.session_state.form_diagnosis:
         st.success("診断完了！")
+        if st.session_state.get("form_scores"):
+            render_score_radar(st.session_state.form_scores)
         if st.button("計画を作成する →", width="stretch", type="primary"):
             _generate_plan_inline(api_key, st.session_state.user_data, st.session_state.form_diagnosis)
 
@@ -448,10 +466,12 @@ elif st.session_state.step == 3:
     # 既存の計画がある場合は表示
     if st.session_state.training_plan:
         render_result(st.session_state.training_plan)
-        render_gear_cta()
+        render_gear_cta(st.session_state.get("form_weakness", "general"))
 
         if st.session_state.get("form_diagnosis"):
             with st.expander("フォーム診断結果を確認する", expanded=False):
+                if st.session_state.get("form_scores"):
+                    render_score_radar(st.session_state.form_scores)
                 st.markdown(st.session_state.form_diagnosis)
 
         col_dl, col_new = st.columns(2)
@@ -459,8 +479,24 @@ elif st.session_state.step == 3:
             today_str = jst_now().strftime("%Y%m%d")
             _download_content = st.session_state.training_plan
             if st.session_state.form_diagnosis:
+                _scores = st.session_state.get("form_scores")
+                _scores_section = ""
+                if _scores:
+                    _overall = sum(_scores.values()) / len(_scores)
+                    _table_rows = "\n".join(
+                        f"| {label} | {_scores[key]} |" for key, label in SCORE_ITEMS.items()
+                    )
+                    _scores_section = (
+                        f"\n## 診断スコア\n\n"
+                        f"| 項目 | スコア |\n"
+                        f"|---|---|\n"
+                        f"{_table_rows}\n"
+                        f"| **総合スコア** | **{_overall:.1f}** |\n\n---\n"
+                    )
                 _download_content += (
-                    "\n\n---\n\n## フォーム診断結果\n\n"
+                    "\n\n---\n\n## フォーム診断結果\n"
+                    + _scores_section
+                    + "\n"
                     + st.session_state.form_diagnosis
                 )
             st.download_button(
@@ -472,7 +508,10 @@ elif st.session_state.step == 3:
             )
         with col_new:
             if st.button("最初からやり直す", width="stretch"):
-                for key in ["step", "user_data", "form_diagnosis", "use_form_in_plan", "training_plan"]:
+                for key in [
+                    "step", "user_data", "form_diagnosis", "form_scores", "form_weakness",
+                    "use_form_in_plan", "training_plan",
+                ]:
                     if key in st.session_state:
                         del st.session_state[key]
                 st.rerun()

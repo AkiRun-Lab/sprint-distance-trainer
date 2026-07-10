@@ -11,11 +11,50 @@ def jst_now() -> datetime:
 
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.10.2"
+APP_VERSION = "1.11.0"
+
+# 診断スコアの5項目（キー: Geminiに出力させる英語キー、値: 表示ラベル）
+SCORE_ITEMS = {
+    "foot_strike": "接地",
+    "pelvis_core": "骨盤・体幹",
+    "arm_swing": "腕振り",
+    "hip_extension": "股関節伸展",
+    "vertical_osc": "上下動",
+}
 
 # Amazonおすすめリスト⑦（ランナーの補強・筋トレ）の送客先URL。
 # 公開情報（シークレットではない）。リスト未確定時はストアトップにフォールバック。
 AMAZON_FITNESS_LIST_URL = "https://amzn.to/4o3iHCx"
+
+# 弱点連動CTA：診断結果の弱点カテゴリごとにCTA文言を切り替える。
+# URLは当面全カテゴリ共通（リスト⑦）。カテゴリ別リストを作ったら "url" を差し替える。
+WEAKNESS_CTA_VARIANTS = {
+    "glute_core": {
+        "title": "💪 殿筋・体幹を、自宅で強化する",
+        "sub": "診断で挙がった殿筋・体幹の補強種目に使える用品をAmazonのおすすめリストにまとめました。ミニバンドや体幹トレーニング用品で、骨盤の安定と股関節伸展の土台をつくれます。",
+        "url": AMAZON_FITNESS_LIST_URL,
+    },
+    "mobility": {
+        "title": "🧘 硬さをほぐして、可動域を広げる",
+        "sub": "診断で挙がった股関節・足首の硬さには、フォームローラーやストレッチ用品が役立ちます。可動域を広げるためのグッズをAmazonのおすすめリストにまとめました。",
+        "url": AMAZON_FITNESS_LIST_URL,
+    },
+    "elasticity": {
+        "title": "⚡ 接地のバネを、鍛え直す",
+        "sub": "診断で挙がった接地のバネ・弾性の不足には、縄跳びやプライオメトリクス用品が効果的です。地面反力を活かすための用品をAmazonのおすすめリストにまとめました。",
+        "url": AMAZON_FITNESS_LIST_URL,
+    },
+    "upper_body": {
+        "title": "🏋️ 腕振りと上半身を、整える",
+        "sub": "診断で挙がった腕振り・上半身の課題には、トレーニングチューブなどが役立ちます。肩まわりと上下半身の連動性を高める用品をAmazonのおすすめリストにまとめました。",
+        "url": AMAZON_FITNESS_LIST_URL,
+    },
+    "general": {
+        "title": "💪 補強メニューを、自宅で実践する",
+        "sub": "上の診断で挙がった補強種目に必要な用品を、用途別にAmazonのおすすめリストにまとめました。殿筋・体幹・足首の安定づくりと弾性の強化に役立つグッズを揃えています。",
+        "url": AMAZON_FITNESS_LIST_URL,
+    },
+}
 
 # =============================================
 # Gemini モデル設定
@@ -38,7 +77,9 @@ GEMINI_PLANNER_MODEL = "gemini-3.5-flash"
 
 SCREENER_MAX_TOKENS = 256
 
-ANALYZER_MAX_TOKENS = 16384
+# 注: thinkingトークンも max_output_tokens を消費するため、診断本文の必要量に
+# 思考分（thinking_level="high"）の余裕を上乗せした床値にする（RFDと同基準）
+ANALYZER_MAX_TOKENS = 24576
 ANALYZER_THINKING_LEVEL = "high"
 
 PLANNER_MAX_TOKENS = 32768  # フォールバック上限（get_planner_max_tokens未使用パス向け）
