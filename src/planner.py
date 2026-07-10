@@ -315,6 +315,7 @@ def generate_plan(
     result_container: list,
     error_container: list,
     progress_state: Optional[dict] = None,
+    start_with_fallback: bool = False,
 ) -> None:
     """トレーニング計画を生成してresult_containerに格納する（スレッド実行用）
 
@@ -322,36 +323,53 @@ def generate_plan(
     尽きた場合のみ、GEMINI_ANALYZER_FALLBACK_MODEL（Gemini 3系）に自動で切り替え、
     PLAN_FALLBACK_MAX_ATTEMPTS回まで試行する（progress_stateに"fallback": Trueをセット）。
     429・MAX_TOKENS・EMPTY_RESPONSE・JSON失敗・タイムアウトで尽きた場合はフォールバックしない。
-    モデルはこの関数呼び出し単位で選ばれるため、次回の計画生成は常にプライマリから始まる。
+
+    start_with_fallback=True の場合は試行順を逆転し、代替モデルから
+    MAX_RETRIES+1回試行、それでも503が続く場合のみプライマリへ
+    PLAN_FALLBACK_MAX_ATTEMPTS回まで切り替える。直前のフォーム診断で
+    プライマリの503混雑が判明済みのケース向け（無駄なプライマリ3回リトライを避ける）。
+    どちらの順序でも、実際に成功したモデルに応じてprogress_state["fallback"]が
+    正しくセットされるため、呼び出し側の「代替モデルで生成しました」表示ロジックは
+    そのまま使える。モデルはこの関数呼び出し単位で選ばれるため、次回の計画生成は
+    呼び出し側が渡すstart_with_fallbackの値次第（既定はプライマリから）。
     ワーカースレッドから呼ばれるため、この関数内で streamlit（st.*）を呼ばないこと。
 
     Args:
         result_container: 成功時に [markdown_text] を格納するリスト
         error_container:  失敗時に [error_message] を格納するリスト
-        progress_state:   呼び出し側と共有する進捗辞書。フォールバックに入ったら
-                          "fallback" を True にする。不要なら None
+        progress_state:   呼び出し側と共有する進捗辞書。各ステージ開始時に
+                          "fallback"（代替モデルで試行中か）をセットする。不要ならNone
+        start_with_fallback: Trueなら代替モデルから開始し、503で尽きたらプライマリへ切り替える
     """
     client = genai.Client(api_key=api_key)
     prompt = build_plan_prompt(user_data, form_diagnosis, total_weeks, start_date)
     practice_races = user_data.get("practice_races", "")
 
-    markdown, last_error = _attempt_generate_plan(
-        client, GEMINI_PLANNER_MODEL, prompt, total_weeks, start_date, practice_races,
-        MAX_RETRIES + 1, progress_state,
-    )
-    if markdown is not None:
-        result_container.append(markdown)
-        return
+    stages = [
+        (GEMINI_PLANNER_MODEL, MAX_RETRIES + 1),
+        (GEMINI_ANALYZER_FALLBACK_MODEL, PLAN_FALLBACK_MAX_ATTEMPTS),
+    ]
+    if start_with_fallback:
+        # 直前のフォーム診断でプライマリの503混雑が判明済みのため、代替モデルから開始する。
+        # 先頭に来た代替モデルには主試行回数（MAX_RETRIES+1）を、
+        # 後段に回ったプライマリにはフォールバック試行回数（PLAN_FALLBACK_MAX_ATTEMPTS）を割り当てる。
+        stages = [
+            (GEMINI_ANALYZER_FALLBACK_MODEL, MAX_RETRIES + 1),
+            (GEMINI_PLANNER_MODEL, PLAN_FALLBACK_MAX_ATTEMPTS),
+        ]
 
-    if last_error == "503_SERVICE_UNAVAILABLE":
+    last_error = None
+    for model, max_attempts in stages:
         if progress_state is not None:
-            progress_state["fallback"] = True
+            progress_state["fallback"] = (model == GEMINI_ANALYZER_FALLBACK_MODEL)
         markdown, last_error = _attempt_generate_plan(
-            client, GEMINI_ANALYZER_FALLBACK_MODEL, prompt, total_weeks, start_date, practice_races,
-            PLAN_FALLBACK_MAX_ATTEMPTS, progress_state,
+            client, model, prompt, total_weeks, start_date, practice_races,
+            max_attempts, progress_state,
         )
         if markdown is not None:
             result_container.append(markdown)
             return
+        if last_error != "503_SERVICE_UNAVAILABLE":
+            break
 
     error_container.append(last_error or "UNKNOWN_ERROR")

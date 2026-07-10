@@ -80,54 +80,55 @@ def _run_plan_generation(api_key, user_data, form_diagnosis) -> bool:
 
     ボタン押下と同一スクリプト実行内で呼ぶこと。中間 st.rerun() を挟むと
     ブラウザに前画面の dim overlay が残るフリーズが起きる（v1.8.4）。
+    直前のフォーム診断が代替モデルにフォールバックしていた場合は、プライマリの
+    混雑が判明済みとして計画生成も代替モデルから開始する（start_with_fallback）。
     """
-    import time as _time
-
     total_weeks, start_date = calculate_plan_weeks(user_data["race_date"], user_data["distance"])
     result_container = []
     error_container = []
-    progress_state = {"fallback": False}
+    start_with_fallback = bool(st.session_state.get("form_used_fallback"))
+    progress_state = {"fallback": start_with_fallback}
     thread = threading.Thread(
         target=generate_plan,
         args=(
             api_key, user_data, form_diagnosis, total_weeks, start_date,
-            result_container, error_container, progress_state,
+            result_container, error_container, progress_state, start_with_fallback,
         ),
         daemon=True,
     )
     thread.start()
 
-    progress_bar = st.progress(0.0)
-    status_text = st.empty()
-    elapsed = 0.0
+    prog = st.progress(0.0, text="計画の作成を開始しています...")
+    start_time = time.monotonic()
     while thread.is_alive():
+        elapsed = time.monotonic() - start_time
         if elapsed >= GENERATION_TIMEOUT_SECONDS:
             # APIハングでプログレスバーが永遠に止まらないよう打ち切る
             # （スレッドはdaemonのため放置してよい。成功してもカウントは増えない）
-            progress_bar.empty()
-            status_text.empty()
+            prog.empty()
             st.error("⚠️ 計画の生成に時間がかかりすぎています。時間をおいて再試行してください。")
             return False
-        elapsed += 0.5
-        progress = min(0.95, elapsed / GENERATION_ESTIMATED_SECONDS)
-        progress_bar.progress(progress)
+        pct = min(elapsed / GENERATION_ESTIMATED_SECONDS, 0.95)
+        minutes, seconds = divmod(int(elapsed), 60)
         if progress_state.get("fallback"):
-            status_text.text("混雑のため代替モデルで計画を生成中...")
+            label = f"混雑のため代替モデルで計画を生成中... {minutes}分{seconds:02d}秒経過"
         else:
-            status_text.text(f"Gemini がトレーニング計画を作成中です... （約{GENERATION_ESTIMATED_SECONDS}秒）")
-        _time.sleep(0.5)
+            label = f"トレーニング計画を作成中... {minutes}分{seconds:02d}秒経過（目安 約1分）"
+        prog.progress(pct, text=label)
+        time.sleep(1)
 
     thread.join()
-    progress_bar.progress(1.0)
-    status_text.empty()
 
     if result_container:
+        prog.progress(1.0, text="計画作成完了")
         st.session_state.training_plan = result_container[0]
         st.session_state.plan_count += 1
         st.session_state.plan_used_fallback = bool(progress_state.get("fallback"))
         st.session_state.cookie_write_pending = True
         return True
 
+    # 失敗時：プログレスバーと「作成中」表示を残さない（watchdog打ち切りとも共通）
+    prog.empty()
     err = error_container[0] if error_container else "UNKNOWN"
     if "503_SERVICE_UNAVAILABLE" in err:
         st.error("⚠️ サーバーが混雑しています。しばらく待ってから再試行してください。")
@@ -439,6 +440,8 @@ elif st.session_state.step == 2:
         and not st.session_state.is_admin
     )
 
+    diag_btn_ph = None
+    skip_btn_ph = None
     if st.session_state.form_diagnosis:
         # 診断結果を保持中：再アップロード導線・回数制限警告・スキップは出さない
         # （スキップを出すと押した瞬間に取得済みの診断結果が破棄されるため）
@@ -464,19 +467,22 @@ elif st.session_state.step == 2:
 
         col_diag, col_skip = st.columns(2)
         with col_diag:
-            run_diagnosis = st.button(
+            diag_btn_ph = st.empty()
+            run_diagnosis = diag_btn_ph.button(
                 "フォームを診断する",
                 disabled=(uploaded_file is None),
                 width="stretch",
             )
         with col_skip:
-            skip_diagnosis = st.button(
+            skip_btn_ph = st.empty()
+            skip_diagnosis = skip_btn_ph.button(
                 "スキップして計画を作成する",
                 width="stretch",
             )
     else:
         st.warning(f"1日あたりのフォーム診断は{MAX_DIAGNOSES_PER_SESSION}回までです。明日またお試しください。")
-        skip_diagnosis = st.button("スキップして計画を作成する", width="stretch")
+        skip_btn_ph = st.empty()
+        skip_diagnosis = skip_btn_ph.button("スキップして計画を作成する", width="stretch")
         run_diagnosis = False
         uploaded_file = None
         context_input = ""
@@ -484,6 +490,8 @@ elif st.session_state.step == 2:
     # フォーム診断の実行
     video_file = None
     if run_diagnosis and uploaded_file:
+        # 処理中は無効化ボタンに差し替えて誤クリックを防ぐ（rerun不使用＝v1.8.4 dim overlay制約に抵触しない）
+        diag_btn_ph.button("フォームを診断する", width="stretch", disabled=True, key="diag_btn_disabled")
         video_bytes = uploaded_file.read()
         try:
             with st.status("動画をアップロード中...", expanded=True):
@@ -523,11 +531,16 @@ elif st.session_state.step == 2:
             st.caption("※ APIの混雑のため、代替モデル（Gemini 3 Flash）で診断しました。")
         if st.session_state.get("form_scores"):
             render_score_radar(st.session_state.form_scores)
-        if st.button("計画を作成する →", width="stretch", type="primary"):
+        plan_btn_ph = st.empty()
+        if plan_btn_ph.button("計画を作成する →", width="stretch", type="primary"):
+            # 処理中は無効化ボタンに差し替えて誤クリックを防ぐ（rerun不使用＝v1.8.4 dim overlay制約に抵触しない）
+            plan_btn_ph.button("計画を作成する →", width="stretch", type="primary", disabled=True, key="plan_btn_disabled")
             _generate_plan_inline(api_key, st.session_state.user_data, st.session_state.form_diagnosis)
 
     # スキップ
     if skip_diagnosis:
+        # 処理中は無効化ボタンに差し替えて誤クリックを防ぐ（rerun不使用＝v1.8.4 dim overlay制約に抵触しない）
+        skip_btn_ph.button("スキップして計画を作成する", width="stretch", disabled=True, key="skip_btn_disabled")
         st.session_state.form_diagnosis = None
         st.session_state.use_form_in_plan = False
         _generate_plan_inline(api_key, st.session_state.user_data, None)
@@ -624,7 +637,10 @@ elif st.session_state.step == 3:
                 st.rerun()
 
     elif not plan_limit_reached:
-        if st.button("トレーニング計画を生成する", type="primary", width="stretch"):
+        gen_btn_ph = st.empty()
+        if gen_btn_ph.button("トレーニング計画を生成する", type="primary", width="stretch"):
+            # 処理中は無効化ボタンに差し替えて誤クリックを防ぐ（rerun不使用＝v1.8.4 dim overlay制約に抵触しない）
+            gen_btn_ph.button("トレーニング計画を生成する", type="primary", width="stretch", disabled=True, key="gen_btn_disabled")
             if _run_plan_generation(api_key, user_data, form_diagnosis):
                 st.rerun()
     else:

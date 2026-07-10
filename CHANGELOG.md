@@ -1,5 +1,18 @@
 # Changelog — SDT（Sprint & Distance Trainer）
 
+## v1.13.1 (2026-07-11)
+
+ユーザー動作確認で挙がったUX不具合3件を修正。
+
+### 🟡 修正
+- **計画生成のプログレス表示をフォーム診断と統一**：`st.progress`＋別`st.empty()`の2要素方式を廃止し、フォーム診断（`_run_form_diagnosis`）と同じ「`prog = st.progress(0.0, text=...)`の1要素＋経過時間ラベル（1秒tick）」方式に統一。失敗時（watchdog打ち切り含む）は`prog.empty()`で「作成中」表示を確実に消してからエラーを出すよう修正
+- **フォーム診断がフォールバックしていたら計画生成も代替モデルから開始**：診断で`gemini-3.5-flash`の混雑（503）が直前に判明している場合、計画生成でプライマリに3回リトライして時間を浪費するのを避け、代替モデル（`gemini-3-flash-preview`）から開始するよう変更。503が続けばプライマリへ切り替える（既存のフォールバック方向と対称）。実際に成功したモデルに応じて`progress_state["fallback"]`が正しくセットされるため、「代替モデルで生成しました」の注記表示ロジックは無変更で動作
+- **生成・診断ボタンの二重クリック問題を修正**：STEP 2「フォームを診断する」「スキップして計画を作成する」「計画を作成する →」、STEP 3「トレーニング計画を生成する」の4ボタンを`st.empty()`プレースホルダ化。処理開始前にボタンを消し、長時間処理中に同じボタンを連打して処理が中断されるのを防止（`st.rerun()`は使わないためv1.8.4のdim overlay制約には抵触しない）
+
+### 🔧 変更
+- `planner.py`：`generate_plan()` に `start_with_fallback: bool = False` 引数を追加。モデル試行順を`stages`リストで構成し、`start_with_fallback=True`時は代替モデル→プライマリの順に反転（試行回数は先頭ステージが`MAX_RETRIES+1`、後段ステージが`PLAN_FALLBACK_MAX_ATTEMPTS`）
+- `app.py`：`_run_plan_generation()` が `st.session_state.form_used_fallback` から `start_with_fallback` を算出してスレッドに渡す。`progress_state`の初期値もこれに合わせて設定
+
 ## v1.13.0 (2026-07-11)
 
 フェーズ2（フォーム診断）に続き、トレーニング計画生成（`planner.py`）にも503自動リトライ＋モデルフォールバックとリクエストタイムアウトを追加（フェーズ3）。既存のリトライループ（`MAX_RETRIES`＋指数バックオフ・MAX_TOKENS即断念）はそのまま維持し、フォールバック経路を追加する構造にした。
