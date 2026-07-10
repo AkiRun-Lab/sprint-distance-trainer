@@ -11,7 +11,7 @@ def jst_now() -> datetime:
 
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.12.0"
+APP_VERSION = "1.13.0"
 
 # 診断スコアの5項目（キー: Geminiに出力させる英語キー、値: 表示ラベル）
 SCORE_ITEMS = {
@@ -99,6 +99,12 @@ RETRY_503_MAX_ATTEMPTS = 3
 RETRY_503_WAIT_SEC = 10
 # プライマリが503で尽きた際のフォールバックモデルの最大試行回数
 FALLBACK_503_MAX_ATTEMPTS = 2
+
+# 計画生成リクエストのタイムアウト（秒）。SDKデフォルトは無期限のためハング対策として明示。
+# 計画生成はフォーム診断より長時間かかるため余裕をみて10分とする
+PLAN_TIMEOUT_SEC = 600
+# プライマリが503で尽きた際のフォールバックモデル（GEMINI_ANALYZER_FALLBACK_MODELを流用）の最大試行回数
+PLAN_FALLBACK_MAX_ATTEMPTS = 2
 # プログレスバーの目安時間（秒）。この時間で95%に達し、完了まで頭打ち
 ANALYZE_EXPECTED_SEC = 120
 

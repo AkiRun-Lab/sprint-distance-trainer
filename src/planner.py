@@ -14,8 +14,11 @@ from google.genai import types
 
 from .config import (
     GEMINI_PLANNER_MODEL,
+    GEMINI_ANALYZER_FALLBACK_MODEL,
     PLANNER_THINKING_LEVEL,
     DISTANCE_CATEGORIES,
+    PLAN_TIMEOUT_SEC,
+    PLAN_FALLBACK_MAX_ATTEMPTS,
     get_planner_max_tokens,
     jst_now,
 )
@@ -224,29 +227,35 @@ def _plan_json_to_markdown(plan_data: dict, start_date: str = "", practice_races
     return "\n".join(lines)
 
 
-def generate_plan(
-    api_key: str,
-    user_data: dict,
-    form_diagnosis: Optional[str],
+def _attempt_generate_plan(
+    client,
+    model: str,
+    prompt: str,
     total_weeks: int,
     start_date: str,
-    result_container: list,
-    error_container: list,
-) -> None:
-    """トレーニング計画を生成してresult_containerに格納する（スレッド実行用）
+    practice_races: str,
+    max_attempts: int,
+    progress_state: Optional[dict],
+) -> tuple[Optional[str], Optional[str]]:
+    """指定モデルで最大 max_attempts 回まで計画生成を試行する（内部ヘルパー）。
+
+    プライマリ・フォールバックの両方から呼ばれる共通ループ。空レスポンスガード・
+    MAX_TOKENS即断念・JSONパースの既存ロジックはどちらの呼び出しでも同一に適用される。
 
     Args:
-        result_container: 成功時に [markdown_text] を格納するリスト
-        error_container:  失敗時に [error_message] を格納するリスト
-    """
-    client = genai.Client(api_key=api_key)
-    prompt = build_plan_prompt(user_data, form_diagnosis, total_weeks, start_date)
+        max_attempts:   このモデルでの最大試行回数
+        progress_state: 呼び出し側と共有する進捗辞書（Noneも可）。リトライ時は触らない
+                        （フォールバック切替の "fallback" フラグは呼び出し元 generate_plan が設定する）
 
+    Returns:
+        (markdown, None) 成功時
+        (None, last_error) 失敗時（全試行を使い切った、またはMAX_TOKENS/タイムアウトで即断念した場合）
+    """
     last_error = None
-    for attempt in range(MAX_RETRIES + 1):
+    for attempt in range(max_attempts):
         try:
             response = client.models.generate_content(
-                model=GEMINI_PLANNER_MODEL,
+                model=model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=PLANNER_SYSTEM_INSTRUCTION,
@@ -255,6 +264,7 @@ def generate_plan(
                     thinking_config=types.ThinkingConfig(
                         thinking_level=PLANNER_THINKING_LEVEL,
                     ),
+                    http_options=types.HttpOptions(timeout=PLAN_TIMEOUT_SEC * 1000),
                 ),
             )
             # 空レスポンスガード：本文NoneをパースするとAttributeErrorの生エラーが表示される
@@ -272,9 +282,8 @@ def generate_plan(
                 if _finish_reason(response) == "MAX_TOKENS":
                     raise ValueError("MAX_TOKENS: 計画が長すぎて出力が途中で切れました")
                 raise
-            markdown = _plan_json_to_markdown(plan_data, start_date, user_data.get("practice_races", ""))
-            result_container.append(markdown)
-            return
+            markdown = _plan_json_to_markdown(plan_data, start_date, practice_races)
+            return markdown, None
 
         except Exception as e:
             err = str(e)
@@ -286,8 +295,63 @@ def generate_plan(
             elif err.startswith("MAX_TOKENS"):
                 # トークン切れは再試行しても改善しないため即断念
                 break
+            elif "timeout" in err.lower() or "timed out" in err.lower() or "deadline" in err.lower():
+                # 10分待った後の自動再試行で更に10分待たせないよう、リトライせず即断念する
+                last_error = "TIMEOUT_EXCEEDED"
+                break
 
-            if attempt < MAX_RETRIES:
+            if attempt < max_attempts - 1:
                 time.sleep(RETRY_BASE_DELAY * (2 ** attempt))
+
+    return None, last_error
+
+
+def generate_plan(
+    api_key: str,
+    user_data: dict,
+    form_diagnosis: Optional[str],
+    total_weeks: int,
+    start_date: str,
+    result_container: list,
+    error_container: list,
+    progress_state: Optional[dict] = None,
+) -> None:
+    """トレーニング計画を生成してresult_containerに格納する（スレッド実行用）
+
+    プライマリ（GEMINI_PLANNER_MODEL・MAX_RETRIES回まで指数バックオフ）が503で
+    尽きた場合のみ、GEMINI_ANALYZER_FALLBACK_MODEL（Gemini 3系）に自動で切り替え、
+    PLAN_FALLBACK_MAX_ATTEMPTS回まで試行する（progress_stateに"fallback": Trueをセット）。
+    429・MAX_TOKENS・EMPTY_RESPONSE・JSON失敗・タイムアウトで尽きた場合はフォールバックしない。
+    モデルはこの関数呼び出し単位で選ばれるため、次回の計画生成は常にプライマリから始まる。
+    ワーカースレッドから呼ばれるため、この関数内で streamlit（st.*）を呼ばないこと。
+
+    Args:
+        result_container: 成功時に [markdown_text] を格納するリスト
+        error_container:  失敗時に [error_message] を格納するリスト
+        progress_state:   呼び出し側と共有する進捗辞書。フォールバックに入ったら
+                          "fallback" を True にする。不要なら None
+    """
+    client = genai.Client(api_key=api_key)
+    prompt = build_plan_prompt(user_data, form_diagnosis, total_weeks, start_date)
+    practice_races = user_data.get("practice_races", "")
+
+    markdown, last_error = _attempt_generate_plan(
+        client, GEMINI_PLANNER_MODEL, prompt, total_weeks, start_date, practice_races,
+        MAX_RETRIES + 1, progress_state,
+    )
+    if markdown is not None:
+        result_container.append(markdown)
+        return
+
+    if last_error == "503_SERVICE_UNAVAILABLE":
+        if progress_state is not None:
+            progress_state["fallback"] = True
+        markdown, last_error = _attempt_generate_plan(
+            client, GEMINI_ANALYZER_FALLBACK_MODEL, prompt, total_weeks, start_date, practice_races,
+            PLAN_FALLBACK_MAX_ATTEMPTS, progress_state,
+        )
+        if markdown is not None:
+            result_container.append(markdown)
+            return
 
     error_container.append(last_error or "UNKNOWN_ERROR")

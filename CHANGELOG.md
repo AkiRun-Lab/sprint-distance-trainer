@@ -1,5 +1,19 @@
 # Changelog — SDT（Sprint & Distance Trainer）
 
+## v1.13.0 (2026-07-11)
+
+フェーズ2（フォーム診断）に続き、トレーニング計画生成（`planner.py`）にも503自動リトライ＋モデルフォールバックとリクエストタイムアウトを追加（フェーズ3）。既存のリトライループ（`MAX_RETRIES`＋指数バックオフ・MAX_TOKENS即断念）はそのまま維持し、フォールバック経路を追加する構造にした。
+
+### ✨ 追加
+- **503自動リトライ＋モデルフォールバック**：計画生成がプライマリモデル（`gemini-3.5-flash`）で503を受け、既存のリトライ（最大`MAX_RETRIES`回・指数バックオフ）を使い切った場合のみ、フォールバックモデル（`gemini-3-flash-preview`・フォーム診断と共通）に自動切り替えし、最大`PLAN_FALLBACK_MAX_ATTEMPTS`（2）回まで試行する。429・MAX_TOKENS・EMPTY_RESPONSE・JSON失敗・タイムアウトで尽きた場合はフォールバックしない。フォールバック使用時はSTEP 3の計画表示直後・ダウンロードMarkdown冒頭に「代替モデルで計画を生成しました」の注記を表示
+- **計画生成タイムアウト（10分）**：SDKデフォルトの無期限タイムアウトを明示的に600秒（`PLAN_TIMEOUT_SEC`）に設定。計画生成はフォーム診断より長時間かかるため余裕をみて長めに設定。タイムアウト検出時はリトライせず即断念（`TIMEOUT_EXCEEDED`）し、10分待った後にさらに10分待たせることを防ぐ
+- **プログレス表示の強化**：計画生成中、フォールバックに入ると「混雑のため代替モデルで計画を生成中...」に表示を切り替え
+
+### 🔧 変更
+- `config.py` に `PLAN_TIMEOUT_SEC`・`PLAN_FALLBACK_MAX_ATTEMPTS` を追加（フォールバックモデルは既存の `GEMINI_ANALYZER_FALLBACK_MODEL` を流用）
+- `planner.py`：`generate_plan()` の内部リトライループを `_attempt_generate_plan()` として関数化し、プライマリ・フォールバックの両方で共通利用（空レスポンスガード・MAX_TOKENS即断念・JSONパースの既存ロジックは両方に同様に適用）。`generate_plan()` に `progress_state` 引数を追加（フォールバック時に `progress_state["fallback"] = True`）
+- `app.py`：`_run_plan_generation()` に `progress_state` を渡し、フォールバック中の表示切替に対応。`GENERATION_TIMEOUT_SECONDS` を240→700秒に引き上げ（単発ハング時の`PLAN_TIMEOUT_SEC`＝600秒に余裕を加味）。エラー分岐に `TIMEOUT_EXCEEDED` を追加。セッション状態に `plan_used_fallback` を追加（「最初からやり直す」リセット対象にも追加）
+
 ## v1.12.0 (2026-07-11)
 
 RFD（ランニングフォーム診断アプリ）実装済みの堅牢性機能をフォーム診断機能に移植（フェーズ2）。背景：`gemini-3.5-flash` の503（モデル高負荷）が頻発する一方、Gemini SDKの `generate_content` はデフォルトでタイムアウトが無期限のため、混雑時に診断がハングしたまま返ってこない問題があった。

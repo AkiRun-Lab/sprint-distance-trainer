@@ -69,7 +69,10 @@ def _load_cookie_counts(controller: CookieController):
 
 
 GENERATION_ESTIMATED_SECONDS = 60
-GENERATION_TIMEOUT_SECONDS = 240  # リトライ（最大3回）込みの全体上限
+# 計画生成1回のAPI経路上限。プライマリ/フォールバックとも単発ハング時はPLAN_TIMEOUT_SEC（10分＝600秒）
+# で即断念する設計（リトライしない）のため、実際の最悪ケースは「短時間の503連続失敗
+# ＋フォールバック1回のハング」で約610秒。バックオフ待機分の余裕を見て700秒とする
+GENERATION_TIMEOUT_SECONDS = 700
 
 
 def _run_plan_generation(api_key, user_data, form_diagnosis) -> bool:
@@ -83,9 +86,13 @@ def _run_plan_generation(api_key, user_data, form_diagnosis) -> bool:
     total_weeks, start_date = calculate_plan_weeks(user_data["race_date"], user_data["distance"])
     result_container = []
     error_container = []
+    progress_state = {"fallback": False}
     thread = threading.Thread(
         target=generate_plan,
-        args=(api_key, user_data, form_diagnosis, total_weeks, start_date, result_container, error_container),
+        args=(
+            api_key, user_data, form_diagnosis, total_weeks, start_date,
+            result_container, error_container, progress_state,
+        ),
         daemon=True,
     )
     thread.start()
@@ -104,7 +111,10 @@ def _run_plan_generation(api_key, user_data, form_diagnosis) -> bool:
         elapsed += 0.5
         progress = min(0.95, elapsed / GENERATION_ESTIMATED_SECONDS)
         progress_bar.progress(progress)
-        status_text.text(f"Gemini がトレーニング計画を作成中です... （約{GENERATION_ESTIMATED_SECONDS}秒）")
+        if progress_state.get("fallback"):
+            status_text.text("混雑のため代替モデルで計画を生成中...")
+        else:
+            status_text.text(f"Gemini がトレーニング計画を作成中です... （約{GENERATION_ESTIMATED_SECONDS}秒）")
         _time.sleep(0.5)
 
     thread.join()
@@ -114,6 +124,7 @@ def _run_plan_generation(api_key, user_data, form_diagnosis) -> bool:
     if result_container:
         st.session_state.training_plan = result_container[0]
         st.session_state.plan_count += 1
+        st.session_state.plan_used_fallback = bool(progress_state.get("fallback"))
         st.session_state.cookie_write_pending = True
         return True
 
@@ -122,6 +133,8 @@ def _run_plan_generation(api_key, user_data, form_diagnosis) -> bool:
         st.error("⚠️ サーバーが混雑しています。しばらく待ってから再試行してください。")
     elif "429_RATE_LIMITED" in err:
         st.error("⚠️ APIのリクエスト上限に達しました。しばらく待ってから再試行してください。")
+    elif "TIMEOUT_EXCEEDED" in err:
+        st.error("⚠️ 計画生成が10分を超えたため中断しました。時間をおいて再試行してください。")
     else:
         st.error(f"⚠️ 計画の生成に失敗しました: {err}")
     return False
@@ -231,6 +244,7 @@ def _init_session_state():
         "form_used_fallback": False,
         "use_form_in_plan": False,
         "training_plan": None,
+        "plan_used_fallback": False,
         "diagnosis_count": 0,
         "plan_count": 0,
         "is_admin": False,
@@ -544,6 +558,8 @@ elif st.session_state.step == 3:
     # 既存の計画がある場合は表示
     if st.session_state.training_plan:
         render_result(st.session_state.training_plan)
+        if st.session_state.get("plan_used_fallback"):
+            st.caption("※ APIの混雑のため、代替モデル（Gemini 3 Flash）で計画を生成しました。")
         render_gear_cta(st.session_state.get("form_weakness", "general"))
 
         if st.session_state.get("form_diagnosis"):
@@ -558,6 +574,11 @@ elif st.session_state.step == 3:
         with col_dl:
             today_str = jst_now().strftime("%Y%m%d")
             _download_content = st.session_state.training_plan
+            if st.session_state.get("plan_used_fallback"):
+                _download_content = (
+                    "> ※ APIの混雑のため、代替モデル（Gemini 3 Flash）で計画を生成しました。\n\n"
+                    + _download_content
+                )
             if st.session_state.form_diagnosis:
                 _scores = st.session_state.get("form_scores")
                 _scores_section = ""
@@ -596,7 +617,7 @@ elif st.session_state.step == 3:
             if st.button("最初からやり直す", width="stretch"):
                 for key in [
                     "step", "user_data", "form_diagnosis", "form_scores", "form_weakness",
-                    "form_used_fallback", "use_form_in_plan", "training_plan",
+                    "form_used_fallback", "use_form_in_plan", "training_plan", "plan_used_fallback",
                 ]:
                     if key in st.session_state:
                         del st.session_state[key]
