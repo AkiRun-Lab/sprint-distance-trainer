@@ -11,7 +11,7 @@ def jst_now() -> datetime:
 
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.11.0"
+APP_VERSION = "1.12.0"
 
 # 診断スコアの5項目（キー: Geminiに出力させる英語キー、値: 表示ラベル）
 SCORE_ITEMS = {
@@ -66,6 +66,11 @@ GEMINI_SCREENER_MODEL = "gemini-3.1-flash-lite"
 # フォーム診断（深層推論）
 GEMINI_ANALYZER_MODEL = "gemini-3.5-flash"
 
+# 503フォールバック用の代替診断モデル（Gemini 3系・thinking_level対応を確認済み 2026-07-10）。
+# プライマリがRETRY_503_MAX_ATTEMPTS回連続503のとき、このモデルでFALLBACK_503_MAX_ATTEMPTS回まで試行する。
+# モデルはリクエスト単位で選ばれるため、次の診断は常にプライマリから始まる（RFDと同基準）
+GEMINI_ANALYZER_FALLBACK_MODEL = "gemini-3-flash-preview"
+
 # トレーニング計画生成（構造化出力）
 GEMINI_PLANNER_MODEL = "gemini-3.5-flash"
 
@@ -84,6 +89,18 @@ ANALYZER_THINKING_LEVEL = "high"
 
 PLANNER_MAX_TOKENS = 32768  # フォールバック上限（get_planner_max_tokens未使用パス向け）
 PLANNER_THINKING_LEVEL = "high"
+
+# 解析リクエストのタイムアウト（秒）。SDKデフォルトは無期限のためハング対策として明示（RFDと同基準）
+ANALYZE_TIMEOUT_SEC = 300
+# スクリーニングのタイムアウト（秒）
+SCREEN_TIMEOUT_SEC = 60
+# 503（モデル高負荷）時の自動リトライ：最大試行回数と待機秒
+RETRY_503_MAX_ATTEMPTS = 3
+RETRY_503_WAIT_SEC = 10
+# プライマリが503で尽きた際のフォールバックモデルの最大試行回数
+FALLBACK_503_MAX_ATTEMPTS = 2
+# プログレスバーの目安時間（秒）。この時間で95%に達し、完了まで頭打ち
+ANALYZE_EXPECTED_SEC = 120
 
 
 def get_planner_max_tokens(total_weeks: int) -> int:

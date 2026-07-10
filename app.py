@@ -4,6 +4,7 @@ SDT（Sprint & Distance Trainer）
 """
 import hmac
 import threading
+import time
 from datetime import datetime, timedelta
 
 import streamlit as st
@@ -18,6 +19,8 @@ from src.config import (
     MAX_DIAGNOSES_PER_SESSION,
     MAX_PLAN_GENERATIONS_PER_SESSION,
     SCORE_ITEMS,
+    ANALYZE_EXPECTED_SEC,
+    RETRY_503_MAX_ATTEMPTS,
     jst_now,
 )
 from src.screener import screen_video
@@ -124,6 +127,83 @@ def _run_plan_generation(api_key, user_data, form_diagnosis) -> bool:
     return False
 
 
+def _diagnosis_worker(client, video_file, context, progress_state, result_container, error_container):
+    """フォーム診断をスレッドで実行し、結果 or エラーメッセージをコンテナに格納する。
+
+    ワーカースレッドから呼ばれるため、この関数内で streamlit（st.*）を呼ばないこと。
+    """
+    try:
+        text = analyze_form(client, video_file, context, progress_state)
+        result_container.append(text)
+    except Exception as e:
+        error_container.append(str(e))
+
+
+def _run_form_diagnosis(client, video_file, context) -> bool:
+    """フォーム診断をスレッドで実行し、プログレスバーを表示する。成功時 True。
+
+    ボタン押下と同一スクリプト実行内で呼ぶこと。中間 st.rerun() を挟むと
+    ブラウザに前画面の dim overlay が残るフリーズが起きる（v1.8.4、_run_plan_generationと同じ制約）。
+    """
+    progress_state = {"attempt": 1}
+    result_container = []
+    error_container = []
+    thread = threading.Thread(
+        target=_diagnosis_worker,
+        args=(client, video_file, context, progress_state, result_container, error_container),
+        daemon=True,
+    )
+    thread.start()
+
+    prog = st.progress(0.0, text="解析を開始しています...")
+    start_time = time.monotonic()
+    while thread.is_alive():
+        elapsed = time.monotonic() - start_time
+        pct = min(elapsed / ANALYZE_EXPECTED_SEC, 0.95)
+        minutes, seconds = divmod(int(elapsed), 60)
+        # 経過時間は再試行中も常に表示し続ける
+        if progress_state.get("fallback"):
+            label = f"混雑のため代替モデルで解析中... {minutes}分{seconds:02d}秒経過"
+        elif progress_state["attempt"] > 1:
+            label = (
+                f"フォームを解析中... {minutes}分{seconds:02d}秒経過"
+                f"（API混雑のため自動再試行{progress_state['attempt']}回目/最大{RETRY_503_MAX_ATTEMPTS}回）"
+            )
+        else:
+            label = f"フォームを解析中... {minutes}分{seconds:02d}秒経過（目安30秒〜2分）"
+        prog.progress(pct, text=label)
+        time.sleep(1)
+
+    thread.join()
+
+    if result_container:
+        prog.progress(1.0, text="解析完了")
+        diagnosis_result = result_container[0]
+        result_body, scores = extract_scores_json(diagnosis_result)
+        result_body, weakness = extract_weakness_tag(result_body)
+        st.session_state.form_diagnosis = result_body
+        st.session_state.form_scores = scores
+        st.session_state.form_weakness = weakness
+        st.session_state.form_used_fallback = bool(progress_state.get("fallback"))
+        st.session_state.use_form_in_plan = True
+        st.session_state.diagnosis_count += 1
+        st.session_state.cookie_write_pending = True
+        return True
+
+    # 失敗時：プログレスバーと「解析中/再試行中」表示を残さない
+    prog.empty()
+    err = error_container[0] if error_container else "UNKNOWN_ERROR"
+    if "429_RATE_LIMITED" in err:
+        st.error("⚠️ APIのレート制限に達しました。しばらく待ってから再試行してください。")
+    elif "503_SERVICE_UNAVAILABLE" in err:
+        st.error("⚠️ APIが一時的に利用できません。しばらく待ってから再試行してください。")
+    elif "TIMEOUT_EXCEEDED" in err:
+        st.error("⚠️ 解析が5分を超えたため中断しました。動画を短くする・圧縮するなどして再試行してください。（診断回数は消費されていません）")
+    else:
+        st.error(f"⚠️ エラーが発生しました: {err}")
+    return False
+
+
 def _generate_plan_inline(api_key, user_data, form_diagnosis):
     """STEP 2 のボタン押下時にインラインで計画生成を実行し、STEP 3 へ遷移する。"""
     plan_limit_reached = (
@@ -148,6 +228,7 @@ def _init_session_state():
         "form_diagnosis": None,
         "form_scores": None,
         "form_weakness": "general",
+        "form_used_fallback": False,
         "use_form_in_plan": False,
         "training_plan": None,
         "diagnosis_count": 0,
@@ -401,18 +482,13 @@ elif st.session_state.step == 2:
             if not screen_result["ok"]:
                 st.error(f"❌ {screen_result['reason']}")
             else:
-                with st.status("フォームを解析中...", expanded=True):
-                    st.write("Gemini が動画を解析しています（1〜2分かかる場合があります）")
-                    diagnosis_result = analyze_form(client, video_file, context_input)
-
-                result_body, scores = extract_scores_json(diagnosis_result)
-                result_body, weakness = extract_weakness_tag(result_body)
-                st.session_state.form_diagnosis = result_body
-                st.session_state.form_scores = scores
-                st.session_state.form_weakness = weakness
-                st.session_state.use_form_in_plan = True
-                st.session_state.diagnosis_count += 1
-                st.session_state.cookie_write_pending = True
+                with st.status("フォームを解析中...", expanded=True) as status:
+                    diag_ok = _run_form_diagnosis(client, video_file, context_input)
+                    if diag_ok:
+                        status.update(label="診断完了", state="complete")
+                    else:
+                        # エラーメッセージはこのブロック内に描画されるため、畳むと隠れてしまう
+                        status.update(label="フォーム解析に失敗しました", state="error", expanded=True)
 
         except RuntimeError as e:
             err = str(e)
@@ -429,6 +505,8 @@ elif st.session_state.step == 2:
     # 次のステップへ進むボタン（診断完了後）— cleanup完了後にまとめて表示
     if st.session_state.form_diagnosis:
         st.success("診断完了！")
+        if st.session_state.get("form_used_fallback"):
+            st.caption("※ APIの混雑のため、代替モデル（Gemini 3 Flash）で診断しました。")
         if st.session_state.get("form_scores"):
             render_score_radar(st.session_state.form_scores)
         if st.button("計画を作成する →", width="stretch", type="primary"):
@@ -472,6 +550,8 @@ elif st.session_state.step == 3:
             with st.expander("フォーム診断結果を確認する", expanded=False):
                 if st.session_state.get("form_scores"):
                     render_score_radar(st.session_state.form_scores)
+                if st.session_state.get("form_used_fallback"):
+                    st.caption("※ APIの混雑のため、代替モデル（Gemini 3 Flash）で診断しました。")
                 st.markdown(st.session_state.form_diagnosis)
 
         col_dl, col_new = st.columns(2)
@@ -493,8 +573,14 @@ elif st.session_state.step == 3:
                         f"{_table_rows}\n"
                         f"| **総合スコア** | **{_overall:.1f}** |\n\n---\n"
                     )
+                _fallback_line = (
+                    "\n> ※ APIの混雑のため、代替モデル（Gemini 3 Flash）で診断しました。\n"
+                    if st.session_state.get("form_used_fallback")
+                    else ""
+                )
                 _download_content += (
                     "\n\n---\n\n## フォーム診断結果\n"
+                    + _fallback_line
                     + _scores_section
                     + "\n"
                     + st.session_state.form_diagnosis
@@ -510,7 +596,7 @@ elif st.session_state.step == 3:
             if st.button("最初からやり直す", width="stretch"):
                 for key in [
                     "step", "user_data", "form_diagnosis", "form_scores", "form_weakness",
-                    "use_form_in_plan", "training_plan",
+                    "form_used_fallback", "use_form_in_plan", "training_plan",
                 ]:
                     if key in st.session_state:
                         del st.session_state[key]
