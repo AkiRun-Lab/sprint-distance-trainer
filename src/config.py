@@ -11,7 +11,7 @@ def jst_now() -> datetime:
 
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.13.1"
+APP_VERSION = "1.13.2"
 
 # 診断スコアの5項目（キー: Geminiに出力させる英語キー、値: 表示ラベル）
 SCORE_ITEMS = {
