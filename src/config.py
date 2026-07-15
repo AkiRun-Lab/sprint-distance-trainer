@@ -11,7 +11,7 @@ def jst_now() -> datetime:
 
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.13.2"
+APP_VERSION = "1.13.3"
 
 # 診断スコアの5項目（キー: Geminiに出力させる英語キー、値: 表示ラベル）
 SCORE_ITEMS = {
@@ -26,28 +26,35 @@ SCORE_ITEMS = {
 # 公開情報（シークレットではない）。リスト未確定時はストアトップにフォールバック。
 AMAZON_FITNESS_LIST_URL = "https://amzn.to/4o3iHCx"
 
-# 弱点連動CTA：診断結果の弱点カテゴリごとにCTA文言を切り替える。
-# URLは当面全カテゴリ共通（リスト⑦）。カテゴリ別リストを作ったら "url" を差し替える。
+# カテゴリ別Amazonアイデアリスト（2026-07-15発行・トラッキングID akirun-rfd-22）。
+# generalは網羅型のリスト⑦（AMAZON_FITNESS_LIST_URL）を継続。
+AMAZON_LIST_GLUTE_CORE = "https://amzn.to/4fxnEAV"  # 臀筋・体幹
+AMAZON_LIST_MOBILITY = "https://amzn.to/4aS5UgW"    # 可動域ケア・ストレッチ
+AMAZON_LIST_ELASTICITY = "https://amzn.to/3RdloWg"  # 接地バネ・プライオ
+AMAZON_LIST_UPPER_BODY = "https://amzn.to/4pmRxr3"  # 腕振り・上半身補強
+
+# 弱点連動CTA：診断結果の弱点カテゴリごとにCTA文言・送客先を切り替える。
+# URLはカテゴリ別リストへ送客（2026-07-15差し替え済）。generalのみ網羅型リスト⑦。
 WEAKNESS_CTA_VARIANTS = {
     "glute_core": {
         "title": "💪 殿筋・体幹を、自宅で強化する",
         "sub": "診断で挙がった殿筋・体幹の補強種目に使える用品をAmazonのおすすめリストにまとめました。ミニバンドや体幹トレーニング用品で、骨盤の安定と股関節伸展の土台をつくれます。",
-        "url": AMAZON_FITNESS_LIST_URL,
+        "url": AMAZON_LIST_GLUTE_CORE,
     },
     "mobility": {
         "title": "🧘 硬さをほぐして、可動域を広げる",
         "sub": "診断で挙がった股関節・足首の硬さには、フォームローラーやストレッチ用品が役立ちます。可動域を広げるためのグッズをAmazonのおすすめリストにまとめました。",
-        "url": AMAZON_FITNESS_LIST_URL,
+        "url": AMAZON_LIST_MOBILITY,
     },
     "elasticity": {
         "title": "⚡ 接地のバネを、鍛え直す",
         "sub": "診断で挙がった接地のバネ・弾性の不足には、縄跳びやプライオメトリクス用品が効果的です。地面反力を活かすための用品をAmazonのおすすめリストにまとめました。",
-        "url": AMAZON_FITNESS_LIST_URL,
+        "url": AMAZON_LIST_ELASTICITY,
     },
     "upper_body": {
         "title": "🏋️ 腕振りと上半身を、整える",
         "sub": "診断で挙がった腕振り・上半身の課題には、トレーニングチューブなどが役立ちます。肩まわりと上下半身の連動性を高める用品をAmazonのおすすめリストにまとめました。",
-        "url": AMAZON_FITNESS_LIST_URL,
+        "url": AMAZON_LIST_UPPER_BODY,
     },
     "general": {
         "title": "💪 補強メニューを、自宅で実践する",
