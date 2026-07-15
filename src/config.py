@@ -11,7 +11,7 @@ def jst_now() -> datetime:
 
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.13.3"
+APP_VERSION = "1.13.4"
 
 # 診断スコアの5項目（キー: Geminiに出力させる英語キー、値: 表示ラベル）
 SCORE_ITEMS = {
@@ -72,6 +72,10 @@ GEMINI_SCREENER_MODEL = "gemini-3.1-flash-lite"
 
 # フォーム診断（深層推論）
 GEMINI_ANALYZER_MODEL = "gemini-3.5-flash"
+
+# 診断の再現性向上のためseedを固定する（RFD v1.11.0のフェーズ0測定でスコア完全一致を確認済み・同基準をSDTにも適用）。
+# seedは決定性の「ベストエフォートのヒント」であり完全一致の保証ではない（thinking有効時は特に）
+GEMINI_SEED = 42
 
 # 503フォールバック用の代替診断モデル（Gemini 3系・thinking_level対応を確認済み 2026-07-10）。
 # プライマリがRETRY_503_MAX_ATTEMPTS回連続503のとき、このモデルでFALLBACK_503_MAX_ATTEMPTS回まで試行する。
