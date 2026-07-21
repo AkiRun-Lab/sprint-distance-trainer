@@ -1,5 +1,18 @@
 # Changelog — SDT（Sprint & Distance Trainer）
 
+## v1.13.5 (2026-07-22)
+
+### 変更
+
+- アナライザー・プランナーをGemini 3.6 Flashに更新：`gemini-3.5-flash` → `gemini-3.6-flash`（GA版・出力単価$9.00→$7.50/1Mトークンに値下げ、効率向上）
+- スクリーナーをGemini 3.5 Flash Lite（GA）に更新：`gemini-3.1-flash-lite` → `gemini-3.5-flash-lite`
+- 503フォールバック先をGemini 3.5 Flash（GA）に変更：`gemini-3-flash-preview` → `gemini-3.5-flash`（2026-07-22までメイン診断・計画生成モデルとして本番稼働していたGA版に切り替え、preview版の廃止リスクを解消）
+
+### 注記
+
+- seed=42の再現性ベースラインは旧モデル（gemini-3.5-flash）時点の結果のため、モデル更新後の再測定が必要
+- 実動画での診断E2E（upload→スクリーナー→アナライザー→タグ/スコア抽出→cleanup）および計画生成E2E（10週計画・JSON→Markdown変換まで本番同一経路）は2026-07-22実施済み・成功
+
 ## v1.13.4 (2026-07-15)
 
 ### 改善
