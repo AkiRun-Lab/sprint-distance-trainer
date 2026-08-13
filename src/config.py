@@ -11,7 +11,7 @@ def jst_now() -> datetime:
 
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.13.5"
+APP_VERSION = "1.13.6"
 
 # 診断スコアの5項目（キー: Geminiに出力させる英語キー、値: 表示ラベル）
 SCORE_ITEMS = {
@@ -71,27 +71,33 @@ WEAKNESS_CTA_VARIANTS = {
 GEMINI_SCREENER_MODEL = "gemini-3.5-flash-lite"
 
 # フォーム診断（深層推論）
-GEMINI_ANALYZER_MODEL = "gemini-3.6-flash"
+GEMINI_ANALYZER_MODEL = "gemini-3.7-flash"
 
 # 診断の再現性向上のためseedを固定する（RFD v1.11.0のフェーズ0測定でスコア完全一致を確認済み・同基準をSDTにも適用）。
 # seedは決定性の「ベストエフォートのヒント」であり完全一致の保証ではない（thinking有効時は特に）
-# （測定はgemini-3.5-flash時点。モデル更新後の再現性ベースラインは再測定が必要）
+# （測定はgemini-3.5-flash時点。SDTには再現性測定ツールが無く（RFDのtools/reproducibility_test.pyのみ）、
+#   ベースライン再測定はツール移植が前提。2026-08-14時点で未実施）
 GEMINI_SEED = 42
 
 # 503フォールバック用の代替診断モデル。
-# gemini-3.5-flashは2026-07-22までメイン診断モデルとして本番稼働していたGA版であり、
+# gemini-3.6-flashは2026-08-14までメイン診断・計画生成モデルとして本番稼働していたGA版であり、
 # thinking_level対応は実運用で確認済み（preview版のような廃止リスクがない）。
+# 3.5-flashから引き下げたのは、3.5-flashの出力単価$9.00がラインナップ中で最も高くなったため
+# （3.6/3.7は$3.75で同額・2026-08-14）。
+# 重要: プライマリ（GEMINI_ANALYZER_MODEL / GEMINI_PLANNER_MODEL）と同一モデルにしてはならない。
+# 503を返したモデルへ退避することになり、フォールバックが機能しなくなる。
 # プライマリがRETRY_503_MAX_ATTEMPTS回連続503のとき、このモデルでFALLBACK_503_MAX_ATTEMPTS回まで試行する。
 # モデルはリクエスト単位で選ばれるため、次の診断は常にプライマリから始まる（RFDと同基準）
-GEMINI_ANALYZER_FALLBACK_MODEL = "gemini-3.5-flash"
+GEMINI_ANALYZER_FALLBACK_MODEL = "gemini-3.6-flash"
 
 # トレーニング計画生成（構造化出力）
-GEMINI_PLANNER_MODEL = "gemini-3.6-flash"
+GEMINI_PLANNER_MODEL = "gemini-3.7-flash"
 
 # =============================================
 # Gemini API パラメータ
 # 注: temperature / top_p / top_k は全 Gemini 3.x モデルで非推奨となり削除（公式: デフォルト設定が最適化済み）
-# thinking は thinking_level（minimal/low/medium/high）を使用。深い推論用途のため high を指定
+# thinking は thinking_level（low/medium/high）を使用。深い推論用途のため high を指定
+# 注: gemini-3.7-flash は minimal 非対応。本アプリは high 固定のため影響なし（2026-08-14確認）
 # =============================================
 
 SCREENER_MAX_TOKENS = 256

@@ -50,7 +50,7 @@
 
 | パラメータ | 値 |
 |-----------|-----|
-| モデル | gemini-3.6-flash |
+| モデル | gemini-3.7-flash |
 | max_tokens | 16384 |
 | thinking_level | high |
 
@@ -73,7 +73,7 @@
 
 | パラメータ | 値 |
 |-----------|-----|
-| モデル | gemini-3.6-flash |
+| モデル | gemini-3.7-flash |
 | max_tokens | 32768 |
 | thinking_level | high |
 | 出力形式 | application/json |

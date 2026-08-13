@@ -151,7 +151,7 @@ def _generate_with_retry(client, model, contents, config, progress_state, max_at
 
 
 def analyze_form(client: genai.Client, video_file, context: str, progress_state: dict | None = None) -> str:
-    """gemini-3.6-flash でランニングフォームを診断する。
+    """gemini-3.7-flash でランニングフォームを診断する。
 
     503（モデル高負荷）時は RETRY_503_MAX_ATTEMPTS 回まで自動リトライする。
     プライマリが503で尽きた場合は GEMINI_ANALYZER_FALLBACK_MODEL（Gemini 3系）に自動で切り替え、
