@@ -50,11 +50,11 @@
 
 | パラメータ | 値 |
 |-----------|-----|
-| モデル | gemini-3.7-flash |
+| モデル | gemini-3.8-flash |
 | max_tokens | 16384 |
 | thinking_level | high |
 
-※ `temperature` / `top_p` / `top_k` は Gemini 3.6 Flash のデフォルト設定に最適化済みのため非推奨（指定しない）
+※ `temperature` / `top_p` / `top_k` は Gemini 3.8 Flash のデフォルト設定に最適化済みのため非推奨（指定しない）
 
 診断項目：
 - 全体的なランニングエコノミー
@@ -73,12 +73,12 @@
 
 | パラメータ | 値 |
 |-----------|-----|
-| モデル | gemini-3.7-flash |
+| モデル | gemini-3.8-flash |
 | max_tokens | 32768 |
 | thinking_level | high |
 | 出力形式 | application/json |
 
-※ `temperature` / `top_p` / `top_k` は Gemini 3.6 Flash のデフォルト設定に最適化済みのため非推奨（指定しない）
+※ `temperature` / `top_p` / `top_k` は Gemini 3.8 Flash のデフォルト設定に最適化済みのため非推奨（指定しない）
 
 JSON スキーマ（主要フィールド）：
 - `introduction`：コーチからの挨拶・評価
@@ -99,7 +99,7 @@ JSON スキーマ（主要フィールド）：
 [screener.py] 動画スクリーニング（Gemini flash-lite）
     → 不適切 → エラーメッセージ表示
     → 適切 ↓
-[analyzer.py] フォーム診断（Gemini 3.6 Flash + Thinking）
+[analyzer.py] フォーム診断（Gemini 3.8 Flash + Thinking）
     ↓
 [app.py] 診断結果を session_state に保存
     ↓
