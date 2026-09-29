@@ -11,6 +11,9 @@ jobs:
   wake-up:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # 60日無活動でcronが自動停止（disabled_inactivity）するのを防ぐため、下のステップでenable APIを呼ぶ
+    permissions:
+      actions: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -61,3 +64,11 @@ jobs:
           })();
           EOF
           node wake.js
+
+      # GitHubは60日pushが無いとscheduleを自動停止する（2026-09-16にMSSで発生）
+      # enable APIを毎回呼んで無活動タイマーをリセットする（wakeステップ失敗時も実行）
+      - name: Reset 60-day inactivity timer
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT repos/${{ github.repository }}/actions/workflows/keep-alive.yml/enable
