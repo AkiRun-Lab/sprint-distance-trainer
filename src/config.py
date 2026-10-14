@@ -11,7 +11,7 @@ def jst_now() -> datetime:
 
 
 APP_NAME = "SDT | Sprint & Distance Trainer"
-APP_VERSION = "1.13.7"
+APP_VERSION = "1.13.8"
 
 # 診断スコアの5項目（キー: Geminiに出力させる英語キー、値: 表示ラベル）
 SCORE_ITEMS = {
@@ -80,14 +80,15 @@ GEMINI_ANALYZER_MODEL = "gemini-3.8-flash"
 GEMINI_SEED = 42
 
 # 503フォールバック用の代替診断モデル。
-# gemini-3.7-flashは2026-09-03までメイン診断・計画生成モデルとして本番稼働していたGA版であり、
-# thinking_level対応は実運用で確認済み（preview版のような廃止リスクがない）。
-# 単価はメイン（3.8）と同額のためフォールバック時のコスト増もない（入力$0.75/出力$3.75・2026-09-03）。
+# gemini-3.6-flashは2026-08-14までメイン診断・計画生成モデルとして本番稼働していたGA版であり、
+# thinking_level対応は実運用で確認済み。単価はメイン（3.8）と同額（入力$0.75/出力$3.75・2026-10-15）。
+# 旧値のgemini-3.7-flashは2026-10-08に廃止され3.8へ自動転送されるようになったため、
+# メインと同一モデルへの退避になりフォールバックが無効化していた（2026-10-15に3.6へ変更）。
 # 重要: プライマリ（GEMINI_ANALYZER_MODEL / GEMINI_PLANNER_MODEL）と同一モデルにしてはならない。
 # 503を返したモデルへ退避することになり、フォールバックが機能しなくなる。
 # プライマリがRETRY_503_MAX_ATTEMPTS回連続503のとき、このモデルでFALLBACK_503_MAX_ATTEMPTS回まで試行する。
 # モデルはリクエスト単位で選ばれるため、次の診断は常にプライマリから始まる（RFDと同基準）
-GEMINI_ANALYZER_FALLBACK_MODEL = "gemini-3.7-flash"
+GEMINI_ANALYZER_FALLBACK_MODEL = "gemini-3.6-flash"
 
 # トレーニング計画生成（構造化出力）
 GEMINI_PLANNER_MODEL = "gemini-3.8-flash"
